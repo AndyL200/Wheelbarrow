@@ -4,33 +4,38 @@ import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.ObjectOutputStream;
+import java.net.InetAddress;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Optional;
 
 import Components.Message;
 
 public class ServerInfo implements java.io.Serializable {
-    private String SERVER_NAME;
-    private Socket SERVER_SOCKET;
-    private List<Message> messageQueue;
+    public String SERVER_NAME;
+    public InetAddress SERVER_ADDRESS;
+    public int SERVER_PORT;
+    public Optional<List<Message>> messageQueue;
 
-    ServerInfo(String name, Socket socket, List<Message> messageQueue) {
+    public ServerInfo(String name, InetAddress address, int port, List<Message> messageQueue) {
         this.SERVER_NAME = name;
-        this.SERVER_SOCKET = socket;
-        this.messageQueue = messageQueue;
+        this.SERVER_ADDRESS = address;
+        this.SERVER_PORT = port;
+        this.messageQueue = Optional.ofNullable(messageQueue);
     }
 
     public void queueMessage(Message message) {
-        messageQueue.add(message);
+        messageQueue.ifPresent(queue -> queue.add(message));
     }
 
     public void queueAllMessages(List<Message> messages) {
-        messageQueue.addAll(messages);
+        messageQueue.ifPresent(queue -> queue.addAll(messages));
     }
 
     public byte[] toBytes() {
@@ -42,37 +47,37 @@ public class ServerInfo implements java.io.Serializable {
             return baos.toByteArray();
         } catch (Exception e) {
             System.out.println("Error serializing ServerInfo: " + e.getMessage());
-            e.printStackTrace();
             return new byte[0];
         }
     }
 
-    ServerInfo(String name, ServerSocket socket, List<Message> messageQueue) {
+    //Do I even want this?
+    public ServerInfo(String name, ServerSocket socket, List<Message> messageQueue) {
         this.SERVER_NAME = name;
+        this.SERVER_ADDRESS = socket.getInetAddress();
+        this.SERVER_PORT = socket.getLocalPort();
+        this.messageQueue = Optional.ofNullable(messageQueue);
+    }
+
+    public ServerInfo(String name, String address, int port, List<Message> messageQueue) {
         try {
-            this.SERVER_SOCKET = new Socket(socket.getInetAddress(), socket.getLocalPort());
+            this.SERVER_ADDRESS = InetAddress.getByName(address);
+            this.SERVER_PORT = port;
         } catch (Exception e) {
-            e.printStackTrace();
+            System.out.println("Error creating ServerInfo: " + e.getMessage());
+            //e.printStackTrace();
         }
+        this.SERVER_NAME = name;
+        this.messageQueue = Optional.ofNullable(messageQueue);
     }
 
     public List<Message> getMessageQueue() {
-        return messageQueue;
+        return messageQueue.orElse(null);
     }
 
     public void dump() {
-        Path currentDir = Paths.get("").toAbsolutePath();
-        Path filename = currentDir.resolve("com").resolve("server_cache").resolve(SERVER_NAME + ".cache");
-        
-        if (!Files.exists(filename)) {
-            try {
-                FileOutputStream fos = new FileOutputStream(filename.toFile());
-                fos.write(new ServerCache(SERVER_NAME, SERVER_SOCKET, null, messageQueue.toArray(new Message[0])).toBytes());
-                fos.close();
-            } catch (Exception e) {
-                e.printStackTrace();
-            }
-        }
+        ServerCache cache = new ServerCache(SERVER_NAME, SERVER_ADDRESS, SERVER_PORT, null, messageQueue.orElse(null).toArray(new Message[0]), new byte[0]);
+        cache.moveToCache();
     }
 
 }

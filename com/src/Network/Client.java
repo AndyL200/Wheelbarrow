@@ -10,8 +10,12 @@ import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.OutputStreamWriter;
 import java.io.UnsupportedEncodingException;
+import java.net.Inet6Address;
 import java.net.InetAddress;
+import java.net.NetworkInterface;
 import java.net.Socket;
+import java.net.SocketException;
+import java.util.Enumeration;
 import java.util.function.Consumer;
 import Components.ComponentMacros.MessageType;
 
@@ -91,23 +95,23 @@ public class Client implements User {
                 byte[] data = receive();
                 BufferedReader br = new BufferedReader(new InputStreamReader(new ByteArrayInputStream(data)));
                 if (data.length > 0) {
-                    int type = br.read();
                     int length = br.read();
                     char[] message = new char[length];
                     br.read(message, 0, length);
-                    String msgStr = new String(message);
-                    if (type == MessageType.BROADCAST.getValue()) {
-                    System.out.println("Received message: " + msgStr);
-                    onMessageReceived.accept(new Message(getName(), msgStr));
+                    Message msg = Message.fromBytes(data);
+                    if (msg.type == MessageType.BROADCAST) {
+                        //could be an image here
+                    System.out.println("Received message: " + new String(msg.messageData));
+                    onMessageReceived.accept(new Message(getName(), new String(msg.messageData), msg.type));
                 }
-                    else if (type == MessageType.WELCOME.getValue()) {
-                        System.out.println("Received welcome message: " + msgStr);
+                    else if (msg.type == MessageType.WELCOME) {
+                        System.out.println("Received welcome message: " + new String(msg.messageData));
                         send(("ACK Hello, from " + getName()).getBytes());
                     }
-                    else if(type == MessageType.MESSAGE.getValue()) {
+                    else if(msg.type == MessageType.MESSAGE) {
                         // Probably an area where something specific happens because the message is directed towards this client
-                        System.out.println("Received message: " + msgStr);
-                        onMessageReceived.accept(new Message(getName(), msgStr));
+                        System.out.println("Received message: " + new String(msg.messageData));
+                        onMessageReceived.accept(new Message(getName(), new String(msg.messageData), msg.type));
                     }
             }
             } catch (IOException e) {
@@ -117,6 +121,7 @@ public class Client implements User {
         }
     }
 
+    @Override
     //User Interface contracts
     public void send(byte[] message) {
         try {
@@ -125,7 +130,7 @@ public class Client implements User {
             e.printStackTrace();
         }
     }
-
+    @Override
     public void send(Message message) {
         try {
             sendServer(message.messageData);
@@ -133,7 +138,7 @@ public class Client implements User {
             e.printStackTrace();
         }
     }
-    
+    @Override
     public byte[] receive() {
         try {
             return receiveClient().toByteArray();
@@ -173,5 +178,31 @@ public class Client implements User {
     public String getName() {
         return HOSTNAME;
     }
+
+    @Override
+    public InetAddress getAddress() {
+        try {
+        Enumeration<NetworkInterface> interfaces = NetworkInterface.getNetworkInterfaces();
+
+        while (interfaces.hasMoreElements()) {
+            NetworkInterface iface = interfaces.nextElement();
+            if (iface.isLoopback() || iface.isUp() == false || iface.isVirtual()) {
+                continue;
+            }
+            Enumeration<InetAddress> addresses = iface.getInetAddresses();
+            while (addresses.hasMoreElements()) {
+                InetAddress addr = addresses.nextElement();
+                if (!addr.isLoopbackAddress() && addr instanceof Inet6Address) {
+                    return addr;
+                }
+            }
+        }
+        }
+        catch (SocketException s) {
+            System.out.println("Failed to get network interfaces");
+        }
+        return null;
+    }
+
 }
 

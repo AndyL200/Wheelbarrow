@@ -1,7 +1,7 @@
 import java.io.IOException;
 import java.util.*;
 
-import Controllers.SceneHandler;
+import Handlers.SceneHandler;
 import javafx.application.Application;
 import javafx.fxml.FXMLLoader;
 import javafx.scene.Scene;

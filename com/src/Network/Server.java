@@ -1,11 +1,15 @@
 package Network;
+import java.net.Inet6Address;
 import java.net.InetAddress;
+import java.net.NetworkInterface;
 import java.net.ServerSocket;
 import java.net.Socket;
+import java.net.SocketException;
 import java.net.UnknownHostException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Deque;
+import java.util.Enumeration;
 import java.util.List;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutorService;
@@ -29,7 +33,7 @@ import java.lang.ref.SoftReference;
 public class Server implements User, AutoCloseable {
     private volatile boolean running = true;
 
-    public ServerSocket server;
+    public ServerSocket socket;
     public String HOSTNAME = "localhost";
     private ExecutorService pool = Executors.newFixedThreadPool(50);
     protected List<Socket> clients = new ArrayList<Socket>(0);
@@ -67,7 +71,7 @@ public class Server implements User, AutoCloseable {
 
                 else if (type == MessageType.MESSAGE.getValue()) {
                     buffer.write(response);
-                    Message m = processMessage(buffer.toByteArray());
+                    Message m = Message.fromBytes(buffer.toByteArray());
                     messages.add(m);
                     //periodically cache messages??
                     broadcast(m);
@@ -82,11 +86,6 @@ public class Server implements User, AutoCloseable {
                 Thread.sleep(100);
             }
             return null;
-        }
-
-        public Message processMessage(byte[] data) {
-            Message m = new Message(client.getRemoteSocketAddress().toString(), data);
-            return m;
         }
 
         public void server_info() {
@@ -139,59 +138,60 @@ public class Server implements User, AutoCloseable {
     }
 
     public Server() {
+        
         try {
-            initInfo();
-        } catch (Exception e) {
+            this.socket = new ServerSocket(50000);
+            this.HOSTNAME = InetAddress.getLocalHost().getHostName();
+            System.out.println("Server HOSTNAME: "  + HOSTNAME + ", IP: " + InetAddress.getLocalHost().getHostAddress());
+            
+        } catch (UnknownHostException e1) {
             System.out.println("Failed to initialize server info cache");
-            e.printStackTrace();
-            return;
+            this.HOSTNAME = "localhost";
+        } catch (IOException e0) {
+            System.out.println("Failed to initialize server socket");
+            try {
+                this.socket = new ServerSocket(0);
+                this.HOSTNAME = InetAddress.getLocalHost().getHostName();
+            }
+            catch (IOException e) {
+                System.out.println("Failed to initialize server socket on random port");
+                this.socket = null;
+                this.HOSTNAME = "localhost";
+            }
+        }
+
+        if (socket == null) {
+                return;
         }
 
         acceptor = new Thread(this::acceptor_loop);
         acceptor.setDaemon(true);
-
+        acceptor.start();
+        
         try {
-            this.server = new ServerSocket(50000);
-            this.HOSTNAME = InetAddress.getLocalHost().getHostName();
-            System.out.println("Server HOSTNAME: "  + HOSTNAME + ", IP: " + InetAddress.getLocalHost().getHostAddress());
-            acceptor.start();
-        } catch (Exception e) {
-            e.printStackTrace();
-            closeServer();
+            initInfo();
         }
-
+        catch (UnknownHostException h) {
+            System.out.println("Failed to initialize server info" + h.getMessage());
+        }
     }
+
 
     public Server(ServerCache cache) {
         try {
             this.cacheRef = new SoftReference<ServerCache>(cache);                
-            initInfo();
         } catch (Exception e) {
             System.out.println("Failed to initialize server info cache");
-            e.printStackTrace();
-            return;
         }
 
-        acceptor = new Thread(this::acceptor_loop);
-        acceptor.setDaemon(true);
-
-        try {
-            this.server = new ServerSocket(50000);
-            this.HOSTNAME = InetAddress.getLocalHost().getHostName();
-            System.out.println("Server HOSTNAME: "  + HOSTNAME + ", IP: " + InetAddress.getLocalHost().getHostAddress());
-            acceptor.start();
-        } catch (Exception e) {
-            e.printStackTrace();
-            closeServer();
-        }
-
+        this();
     }
 
     
     private void acceptor_loop() {
         while(running) {
             try {
-            Socket client = server.accept();
+            Socket client = socket.accept();
             System.out.println("Client connected: " + client.getRemoteSocketAddress());
             clients.add(client);
             pool.submit(new ClientHandler(client));
@@ -273,12 +273,40 @@ public class Server implements User, AutoCloseable {
     }       
     
     public void initInfo() throws UnknownHostException{
-            this.info = new ServerInfo(HOSTNAME, server, new ArrayList<Message>(0));
+            this.info = new ServerInfo(HOSTNAME, socket, new ArrayList<Message>(0));
     }
 
     @Override
     public void close() {
         closeServer();
+    }
+
+    @Override
+    public InetAddress getAddress() {
+        if (socket != null) {
+            return socket.getInetAddress();
+        }
+        try {
+        Enumeration<NetworkInterface> interfaces = NetworkInterface.getNetworkInterfaces();
+
+        while (interfaces.hasMoreElements()) {
+            NetworkInterface iface = interfaces.nextElement();
+            if (iface.isLoopback() || iface.isUp() == false || iface.isVirtual()) {
+                continue;
+            }
+            Enumeration<InetAddress> addresses = iface.getInetAddresses();
+            while (addresses.hasMoreElements()) {
+                InetAddress addr = addresses.nextElement();
+                if (!addr.isLoopbackAddress() && addr instanceof Inet6Address) {
+                    return addr;
+                }
+            }
+        }
+        }
+        catch (SocketException s) {
+            System.out.println("Failed to get network interfaces");
+        }
+        return null;
     }
 
     public void closeServer() {
@@ -291,7 +319,7 @@ public class Server implements User, AutoCloseable {
             }
             pool.shutdown();
             try {
-                server.close();
+                socket.close();
                 if (cacheRef != null) {
                     cacheRef.get().accept(info);
                 }

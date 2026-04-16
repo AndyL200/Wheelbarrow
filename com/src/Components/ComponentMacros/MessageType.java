@@ -1,12 +1,15 @@
 package Components.ComponentMacros;
 
+
+
 public enum MessageType {
     SERVER_INFO(1),
     SERVER_CACHE(1 << 1),
     MESSAGE(1 << 2),
     BROADCAST(1 << 3),
     WELCOME(1 << 4),
-    OTHER(1 << 5);
+    TYPING(1 << 5),
+    OTHER(1 << 6);
 
     private final int value;
     
@@ -17,6 +20,14 @@ public enum MessageType {
     public int getValue() {
         return value;
     }
+    
+    //TODO
+    // public MessageOther getOther() {
+    //     if (this == OTHER) {
+    //         return new MessageOther();
+    //     }
+    //     throw new IllegalStateException("MessageType is not OTHER");
+    // }
 
     public static MessageType fromInt(int value) {
         for (MessageType type : MessageType.values()) {
@@ -33,6 +44,7 @@ public enum MessageType {
             case MESSAGE -> "MESSAGE";
             case BROADCAST -> "BROADCAST";
             case WELCOME -> "WELCOME";
+            case TYPING -> "TYPING";
             case OTHER -> "OTHER";
         };
     }

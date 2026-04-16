@@ -26,6 +26,7 @@ import javafx.scene.image.Image;
 //TODO(use appdata rather than the project directory for this cache)
 public class ServerCache implements Serializable{
     private String SERVER_NAME;
+    //Better to keep as is, test for validity on server cache objects
     private Socket SERVER_SOCKET;
     private List<User> users;
     private Message[] chatlog;

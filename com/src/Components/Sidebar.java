@@ -1,10 +1,14 @@
 package Components;
 
+import java.util.function.Consumer;
+
 import Network.Server;
+import Network.ServerInfo;
 import javafx.collections.ObservableList;
 import javafx.geometry.Pos;
 import javafx.scene.Node;
 import javafx.scene.control.Label;
+import javafx.scene.control.ScrollPane;
 import javafx.scene.image.Image;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
@@ -12,16 +16,27 @@ import javafx.scene.layout.StackPane;
 import javafx.scene.layout.VBox;
 import javafx.scene.shape.Circle;
 
-public class Sidebar extends VBox {
-    Runnable onAddServer = () -> {System.out.println("You must add functionality to this button!");};
+public class Sidebar extends ScrollPane {
+    VBox core;
+    Runnable onAddServer = () -> {System.out.println("You must add functionality to this button! (Add Server)");};
+    Consumer<ServerInfo> onServerSelect = (serverInfo) -> {System.out.println("You must add functionality to this button! (Server selected)");};
     public Sidebar() {
         this.getStyleClass().add("sidebar-style");
-        this.setAlignment(Pos.TOP_CENTER);
-        this.setSpacing(15);
+        setMaxHeight(Double.MAX_VALUE);
+        setMaxWidth(Double.MAX_VALUE);
+        this.core = new VBox();
+        this.core.setSpacing(15);
+
         
         // Create plus button
         StackPane plusButton = createPlusButton();
-        this.getChildren().add(plusButton);
+        plusButton.setAlignment(Pos.TOP_CENTER);
+        VBox.setVgrow(this.core, Priority.ALWAYS);
+        HBox.setHgrow(this.core, Priority.ALWAYS);
+        this.core.getChildren().add(plusButton);
+        this.core.setAlignment(Pos.TOP_CENTER);
+        this.setContent(this.core);
+
     }
     
     public StackPane createPlusButton() {
@@ -49,20 +64,33 @@ public class Sidebar extends VBox {
         return stackPane;
     }
 
-    public ServerEntry createServerEntry(Image icon) {
+    //the creation of a server entry should be handled by the sidebar
+    public static ServerEntry createServerEntry(ServerInfo info, Image icon) {
         if (icon == null) {
             System.out.println("Warning: No icon provided for server entry");
-            return new ServerEntry();
+            return new ServerEntry(info);
         }
-        return new ServerEntry(icon);
+        return new ServerEntry(info, icon);
     }
 
-    public ServerEntry createServerEntry() {
-        return new ServerEntry();
+    public static ServerEntry createServerEntry(ServerInfo info) {
+        return new ServerEntry(info);
     }
+
+    public void addServerEntry(ServerEntry entry) {
+        entry.setOnMouseClicked((e) -> {
+            onServerSelect.accept(entry.getServerInfo());
+        });
+        this.core.getChildren().add(entry);
+    }
+
     
     public void setOnAddServer(Runnable onAddServer) {
         this.onAddServer = onAddServer;
+    }
+
+    public void setOnServerSelect(Consumer<ServerInfo> onServerSelect) {
+        this.onServerSelect = onServerSelect;
     }
 
 }
