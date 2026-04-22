@@ -14,7 +14,9 @@ public class AudioCallComp extends StackPane {
     private HBox controls;
     private VBox container;
     private Runnable onExit;
-    
+    private Runnable onMute;
+    private Runnable onEnd;
+
     public AudioCallComp() {
         this.getStyleClass().add("audio-call-comp");
         this.setMaxHeight(Double.MAX_VALUE);
@@ -55,12 +57,18 @@ public class AudioCallComp extends StackPane {
         // Mute button
         Button muteBtn = new Button("🔊 Mute");
         muteBtn.getStyleClass().add("audio-control-btn");
-        muteBtn.setOnAction(e -> System.out.println("Mute toggled"));
+        muteBtn.setOnAction(e -> {
+            System.out.println("Mute toggled");
+            if (onMute != null) onMute.run();
+        });
         
         // End call button
         Button endCallBtn = new Button("End Call");
         endCallBtn.getStyleClass().add("audio-end-call-btn");
-        endCallBtn.setOnAction(e -> System.out.println("Call ended"));
+        endCallBtn.setOnAction(e -> {
+            System.out.println("Call ended");
+            if (onEnd != null) onEnd.run();
+        });
         
         // Exit button
         Button exitBtn = new Button("✕ Exit");
@@ -85,5 +93,13 @@ public class AudioCallComp extends StackPane {
     
     public void setOnExit(Runnable onExit) {
         this.onExit = onExit;
+    }
+
+     public void setOnMute(Runnable onMute) {
+        this.onMute = onMute;
+    }
+    
+    public void setOnEnd(Runnable onEnd) {
+        this.onEnd = onEnd;
     }
 }

@@ -37,6 +37,12 @@ public class Client implements User {
 
     public Client(InetAddress address) {
         this.SERVER_HOSTNAME = address.getHostName();
+        getClientAddress();
+        HOSTNAME = ADDRESS != null ? ADDRESS.getHostName() : "Unknown Client";
+        if (SERVER_HOSTNAME.equals(HOSTNAME)) {
+            HOSTNAME += "_1";
+        }
+
         try {
             SERVER = new Socket(address, 50000);
             reader = new DataInputStream(SERVER.getInputStream());
@@ -54,6 +60,9 @@ public class Client implements User {
         this.SERVER_HOSTNAME = address.getHostName();
         getClientAddress();
         HOSTNAME = ADDRESS != null ? ADDRESS.getHostName() : "Unknown Client";
+        if (SERVER_HOSTNAME.equals(HOSTNAME)) {
+            HOSTNAME += "_1";
+        }
         try {
             SERVER = new Socket(address, port);
             reader = new DataInputStream(SERVER.getInputStream());
@@ -71,6 +80,9 @@ public class Client implements User {
         this.SERVER_HOSTNAME = address.getHostName();
         getClientAddress();
         HOSTNAME = ADDRESS != null ? ADDRESS.getHostName() : "Unknown Client";
+        if (SERVER_HOSTNAME.equals(HOSTNAME)) {
+            HOSTNAME += "_1";
+        }
         this.onMessageReceived = listener;
         try {
             SERVER = new Socket(address, port);

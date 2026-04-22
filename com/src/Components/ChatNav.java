@@ -3,6 +3,8 @@ package Components;
 
 
 
+import java.util.function.Supplier;
+
 import Assets.AudioCallIcon;
 import Assets.DisconnectIcon;
 import Assets.VideoCallIcon;
@@ -24,8 +26,9 @@ public class ChatNav extends HBox{
     private Button videoCallBtn;
     private Runnable onAudioCall;
     private Runnable onVideoCall;
-    private boolean isAudioCallActive = false;
-    private boolean isVideoCallActive = false;
+    private Supplier<Boolean> isAudioCallActiveSupplier;
+    private Supplier<Boolean> isVideoCallActiveSupplier;
+
     public ChatNav(ServerInfo info) {
         this.info = info;
         this.getStyleClass().add("navbar");
@@ -68,7 +71,6 @@ public class ChatNav extends HBox{
         audioCallBtn.setOnMouseEntered(e -> audioCallBtn.getStyleClass().add("audio-call-btn-hover"));
         audioCallBtn.setOnMouseExited(e -> audioCallBtn.getStyleClass().remove("audio-call-btn-hover"));
         audioCallBtn.setOnMouseClicked(e -> {
-            isAudioCallActive = !isAudioCallActive;
             updateAudioCallBtn();
             if (onAudioCall != null) onAudioCall.run();
         });
@@ -86,7 +88,6 @@ public class ChatNav extends HBox{
         videoCallBtn.setOnMouseEntered(e -> videoCallBtn.getStyleClass().add("video-call-btn-hover"));
         videoCallBtn.setOnMouseExited(e -> videoCallBtn.getStyleClass().remove("video-call-btn-hover"));
         videoCallBtn.setOnMouseClicked(e -> {
-            isVideoCallActive = !isVideoCallActive;
             updateVideoCallBtn();
             if (onVideoCall != null) onVideoCall.run();
         });
@@ -110,7 +111,7 @@ public class ChatNav extends HBox{
     }
     
     private void updateAudioCallBtn() {
-        if (isAudioCallActive) {
+        if (isAudioCallActiveSupplier != null && isAudioCallActiveSupplier.get()) {
             audioCallBtn.getStyleClass().add("audio-call-btn-active");
         } else {
             audioCallBtn.getStyleClass().remove("audio-call-btn-active");
@@ -118,21 +119,19 @@ public class ChatNav extends HBox{
     }
     
     private void updateVideoCallBtn() {
-        if (isVideoCallActive) {
+        if (isVideoCallActiveSupplier != null && isVideoCallActiveSupplier.get()) {
             videoCallBtn.getStyleClass().add("video-call-btn-active");
         } else {
             videoCallBtn.getStyleClass().remove("video-call-btn-active");
         }
     }
 
-    public void setIsAudioCallActive(boolean isActive) {
-        this.isAudioCallActive = isActive;
-        updateAudioCallBtn();
+    public void setInAudioCallSup(Supplier<Boolean> isAudioCallActiveSupplier) {
+        this.isAudioCallActiveSupplier = isAudioCallActiveSupplier;
     }
 
-    public void setIsVideoCallActive(boolean isActive) {
-        this.isVideoCallActive = isActive;
-        updateVideoCallBtn();
+    public void setInVideoCallSup(Supplier<Boolean> isVideoCallActiveSupplier) {
+        this.isVideoCallActiveSupplier = isVideoCallActiveSupplier;
     }
     
     public void setOnAudioCall(Runnable onAudioCall) {
@@ -156,4 +155,5 @@ public class ChatNav extends HBox{
     private void onDisconnect() {
         System.out.println("Disconnecting from server");
     }
+
 }

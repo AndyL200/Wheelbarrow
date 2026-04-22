@@ -56,6 +56,8 @@ public class ChatComp extends StackPane{
 
         this.chatNav.setOnAudioCall(this::toggleAudioCall);
         this.chatNav.setOnVideoCall(this::toggleVideoCall);
+        this.chatNav.setInAudioCallSup(this::isInAudioCall);
+        this.chatNav.setInVideoCallSup(this::isInVideoCall);
         ChatBox chatBox = new ChatBox();
         chatBox.setKeyConsume(this::outtyping);
         chatBox.setOnSend((message) -> {
@@ -120,40 +122,55 @@ public class ChatComp extends StackPane{
 
     private void toggleAudioCall() {
         if (this.audioCallComp == null) {
+            sendMessage(new Message(user.getName(), "AUDIO", MessageType.AUDIO.getValue()));
             this.audioCallComp = new AudioCallComp();
-            this.audioCallComp.setOnExit(() -> {
+            this.audioCallComp.setOnEnd(() -> {
                 this.getChildren().remove(this.audioCallComp);
-                this.chatNav.setIsAudioCallActive(false);
                 this.audioCallComp = null;
             });
+            this.videoCallComp.setOnExit(() -> {
+                this.getChildren().remove(this.audioCallComp);
+            });
             this.getChildren().add(this.audioCallComp);
-        } else {
-            this.getChildren().remove(this.audioCallComp);
-            this.audioCallComp = null;
         }
-
-        if (this.audioCallComp != null) {
-            sendMessage(new Message(user.getName(), "AUDIO", MessageType.AUDIO.getValue()));
+        else {
+            if (this.getChildren().contains(this.audioCallComp)) {
+                this.getChildren().remove(this.audioCallComp);
+            }
+            else {
+                this.getChildren().add(this.audioCallComp);
+            }
         }
     }
 
     private void toggleVideoCall() {
         if (this.videoCallComp == null) {
+            sendMessage(new Message(user.getName(), "VIDEO", MessageType.VIDEO.getValue()));
             this.videoCallComp = new VideoCallComp();
-            this.videoCallComp.setOnExit(() -> {
+            this.videoCallComp.setOnEnd(() -> {
                 this.getChildren().remove(this.videoCallComp);
-                this.chatNav.setIsVideoCallActive(false);
                 this.videoCallComp = null;
             });
+            this.videoCallComp.setOnExit(() -> {
+                this.getChildren().remove(this.videoCallComp);
+            });
             this.getChildren().add(this.videoCallComp);
-        } else {
-            this.getChildren().remove(this.videoCallComp);
-            this.videoCallComp = null;
+        } 
+        else {
+            if (this.getChildren().contains(this.videoCallComp)) {
+                this.getChildren().remove(this.videoCallComp);
+            }
+            else {
+                this.getChildren().add(this.videoCallComp);
+            }
         }
+    }
 
-        if (this.videoCallComp != null) {
-            sendMessage(new Message(user.getName(), "VIDEO", MessageType.VIDEO.getValue()));
-        }
+    public boolean isInAudioCall() {
+        return this.audioCallComp != null;
+    }
+    public boolean isInVideoCall() {
+        return this.videoCallComp != null;
     }
 }
 
