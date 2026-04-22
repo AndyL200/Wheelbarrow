@@ -2,3 +2,200 @@
     -fx-background-color: #2C3E50;
     -fx-padding: 20px;
 }
+
+.sidebar-core {
+    -fx-background-color: #34495E;
+}
+
+.navbar {
+    -fx-background-color: #2C3E50;
+    -fx-padding: 10px;
+    -fx-alignment: center-left;
+    -fx-margin: 2px;
+}
+
+.audio-call-btn {
+    -fx-background-color: transparent;
+    -fx-border-color: transparent;
+    -fx-padding: 0;
+}
+
+.audio-call-btn-hover {
+    -fx-background-color: rgba(255, 255, 255, 0.1);
+    -fx-border-color: transparent;
+    -fx-padding: 0;
+}
+
+.audio-call-btn-active {
+    -fx-background-color: rgba(76, 175, 80, 0.3);
+    -fx-border-color: #4CAF50;
+    -fx-border-width: 2;
+    -fx-padding: 0;
+}
+
+.video-call-btn {
+    -fx-background-color: transparent;
+    -fx-border-color: transparent;
+    -fx-padding: 0;
+}
+
+.video-call-btn-hover {
+    -fx-background-color: rgba(255, 255, 255, 0.1);
+    -fx-border-color: transparent;
+    -fx-padding: 0;
+}
+
+.video-call-btn-active {
+    -fx-background-color: rgba(33, 150, 243, 0.3);
+    -fx-border-color: #2196F3;
+    -fx-border-width: 2;
+    -fx-padding: 0;
+}
+
+.disconnect-btn {
+    -fx-background-color: transparent;
+    -fx-border-color: transparent;
+    -fx-padding: 0;
+}
+
+.disconnect-btn-hover {
+    -fx-background-color: rgba(255, 255, 255, 0.1);
+    -fx-border-color: transparent;
+    -fx-padding: 0;
+}
+
+/* Audio Call Component */
+.audio-call-comp {
+    -fx-background-color: rgba(0, 0, 0, 0.8);
+}
+
+.audio-call-container {
+    -fx-background-color: #34495E;
+    -fx-border-color: #4CAF50;
+    -fx-border-width: 2;
+    -fx-border-radius: 8;
+}
+
+.audio-call-users {
+    -fx-padding: 20px;
+}
+
+.audio-user-placeholder {
+    -fx-background-color: #2C3E50;
+    -fx-border-color: #4CAF50;
+    -fx-border-width: 1;
+    -fx-border-radius: 6;
+}
+
+.audio-call-controls {
+    -fx-background-color: #2C3E50;
+    -fx-padding: 15px;
+    -fx-border-radius: 6;
+}
+
+.audio-control-btn {
+    -fx-padding: 10px 20px;
+    -fx-font-size: 14px;
+    -fx-background-color: #4CAF50;
+    -fx-text-fill: #ffffff;
+    -fx-border-radius: 4;
+    -fx-cursor: hand;
+}
+
+.audio-control-btn:hover {
+    -fx-background-color: #45a049;
+}
+
+.audio-end-call-btn {
+    -fx-padding: 10px 20px;
+    -fx-font-size: 14px;
+    -fx-background-color: #f44336;
+    -fx-text-fill: #ffffff;
+    -fx-border-radius: 4;
+    -fx-cursor: hand;
+}
+
+.audio-end-call-btn:hover {
+    -fx-background-color: #da190b;
+}
+
+/* Video Call Component */
+.video-call-comp {
+    -fx-background-color: rgba(0, 0, 0, 0.8);
+}
+
+.video-call-container {
+    -fx-background-color: #34495E;
+    -fx-border-color: #2196F3;
+    -fx-border-width: 2;
+    -fx-border-radius: 8;
+}
+
+.video-call-users {
+    -fx-padding: 20px;
+}
+
+.video-user-placeholder {
+    -fx-background-color: #2C3E50;
+    -fx-border-color: #2196F3;
+    -fx-border-width: 1;
+    -fx-border-radius: 6;
+}
+
+.video-call-controls {
+    -fx-background-color: #2C3E50;
+    -fx-padding: 15px;
+    -fx-border-radius: 6;
+}
+
+.video-control-btn {
+    -fx-padding: 10px 20px;
+    -fx-font-size: 14px;
+    -fx-background-color: #2196F3;
+    -fx-text-fill: #ffffff;
+    -fx-border-radius: 4;
+    -fx-cursor: hand;
+}
+
+.video-control-btn:hover {
+    -fx-background-color: #0b7dda;
+}
+
+.video-end-call-btn {
+    -fx-padding: 10px 20px;
+    -fx-font-size: 14px;
+    -fx-background-color: #f44336;
+    -fx-text-fill: #ffffff;
+    -fx-border-radius: 4;
+    -fx-cursor: hand;
+}
+
+.video-end-call-btn:hover {
+    -fx-background-color: #da190b;
+}
+
+.audio-exit-btn {
+    -fx-padding: 10px 20px;
+    -fx-font-size: 14px;
+    -fx-background-color: #757575;
+    -fx-text-fill: #ffffff;
+    -fx-border-radius: 4;
+    -fx-cursor: hand;
+}
+
+.audio-exit-btn:hover {
+    -fx-background-color: #616161;
+}
+
+.video-exit-btn {
+    -fx-padding: 10px 20px;
+    -fx-font-size: 14px;
+    -fx-background-color: #757575;
+    -fx-text-fill: #ffffff;
+    -fx-border-radius: 4;
+    -fx-cursor: hand;
+}
+
+.video-exit-btn:hover {
+    -fx-background-color: #616161;
+}

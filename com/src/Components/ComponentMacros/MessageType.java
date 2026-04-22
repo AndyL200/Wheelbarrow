@@ -9,7 +9,9 @@ public enum MessageType {
     BROADCAST(1 << 3),
     WELCOME(1 << 4),
     TYPING(1 << 5),
-    OTHER(1 << 6);
+    AUDIO(1 << 6),
+    VIDEO(1 << 7),
+    OTHER(1 << 8);
 
     private final int value;
     
@@ -28,15 +30,6 @@ public enum MessageType {
     //     }
     //     throw new IllegalStateException("MessageType is not OTHER");
     // }
-
-    public static MessageType fromInt(int value) {
-        for (MessageType type : MessageType.values()) {
-            if (type.getValue() == value) {
-                return type;
-            }
-        }
-        throw new IllegalArgumentException("Invalid MessageType value: " + value);
-    }
     public static String toString(MessageType type) {
         return switch(type) {
             case SERVER_INFO -> "SERVER_INFO";
@@ -45,6 +38,8 @@ public enum MessageType {
             case BROADCAST -> "BROADCAST";
             case WELCOME -> "WELCOME";
             case TYPING -> "TYPING";
+            case AUDIO -> "AUDIO";
+            case VIDEO -> "VIDEO";
             case OTHER -> "OTHER";
         };
     }

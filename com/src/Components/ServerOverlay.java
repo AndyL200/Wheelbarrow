@@ -110,7 +110,7 @@ public class ServerOverlay extends StackPane {
         createServerBtn.getStyleClass().add("add-server-create-btn");
         createServerBtn.setOnAction(e -> {
             //TODO
-            System.out.println("onHostServer entry");
+            System.out.println("onHostServer from ServerOverlay");
             onHostServer.run();
             onClose.run();
         });

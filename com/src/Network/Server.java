@@ -35,14 +35,15 @@ public class Server implements User, AutoCloseable {
 
     public ServerSocket socket;
     public String HOSTNAME = "localhost";
+    private InetAddress address;
     private ExecutorService pool = Executors.newFixedThreadPool(50);
     protected List<Socket> clients = new ArrayList<Socket>(0);
     protected Deque<Message> messages = new java.util.LinkedList<Message>();
-    private final Semaphore messageSemaphore = new Semaphore(0);
     private Consumer<Message> onMessageReceived;
     private ServerInfo info;
     private SoftReference<ServerCache> cacheRef;
     private Thread acceptor;
+
     private class ClientHandler implements Callable<Void> {
         private Socket client;
         public int infractions = 0;
@@ -60,26 +61,41 @@ public class Server implements User, AutoCloseable {
                 ByteArrayOutputStream buffer = new ByteArrayOutputStream();
 
                 int type = reception.readInt();
+                int slength = reception.readInt();
                 int length = reception.readInt();
+                byte[] senderData = new byte[slength];
+                reception.read(senderData, 0, slength);
                 byte[] response = new byte[length];
-                reception.readFully(response);
+                reception.read(response, 0, length);
 
-                if (type == MessageType.SERVER_INFO.getValue()) {
+                onMessageReceived.accept(new Message(new String(senderData), response, type));
+                
+                if ((type & MessageType.SERVER_INFO.getValue()) > 0) {
                     //ignore, this is just a client requesting server info, not an actual message to broadcast
                     server_info();
                 }
 
-                else if (type == MessageType.MESSAGE.getValue()) {
-                    buffer.write(response);
+                else if ((type & MessageType.MESSAGE.getValue()) > 0) {
+                    DataOutputStream dos = new DataOutputStream(buffer);
+                    dos.writeInt(type);
+                    dos.writeInt(slength);
+                    dos.writeInt(length);
+                    dos.write(senderData);
+                    dos.write(response);
                     Message m = Message.fromBytes(buffer.toByteArray());
                     messages.add(m);
                     //periodically cache messages??
                     broadcast(m);
                 }
 
-                else if (type == MessageType.OTHER.getValue()) {
+                else if ((type & MessageType.OTHER.getValue()) > 0) {
                     //Broadcast
-                    buffer.write(response);
+                    DataOutputStream dos = new DataOutputStream(buffer);
+                    dos.writeInt(type);
+                    dos.writeInt(slength);
+                    dos.writeInt(length);
+                    dos.write(senderData);
+                    dos.write(response);
                     broadcast(buffer.toByteArray());
                 }
 
@@ -95,35 +111,20 @@ public class Server implements User, AutoCloseable {
             try {
                 writer = new DataOutputStream(client.getOutputStream());
             } catch (IOException e) {
-                e.printStackTrace();
+                System.out.println("Error getting client output stream: " + e.getMessage());
                 return;
             }
-
-            if (cacheRef.get() != null) {
-                infoBytes = cacheRef.get().toBytes();
-
-                try {
-                writer.writeInt(MessageType.SERVER_CACHE.getValue()); //type of message
-                writer.writeInt(infoBytes.length); //length of client address + length of info
-                //writer.write(clientAddressBytes);
-                writer.write(infoBytes);
-                writer.flush();
-                } catch (IOException e) {
-                    e.printStackTrace();
-                }
-            }
-            else {
                 infoBytes = info.toBytes();
 
                 try {
-                writer.writeInt(MessageType.SERVER_INFO.getValue()); //type of message
-                writer.writeInt(infoBytes.length); //length of client address + length of info
-                //writer.write(clientAddressBytes);
-                writer.write(infoBytes);
-                writer.flush();
+                    writer.writeInt(MessageType.SERVER_INFO.getValue()); //type of message
+                    writer.writeInt(getName().getBytes().length);
+                    writer.writeInt(infoBytes.length); //length of client address + length of info
+                    writer.write(getName().getBytes(), 0, getName().getBytes().length);
+                    writer.write(infoBytes, 0, infoBytes.length);
+                    writer.flush();
             } catch (IOException e) {
-                e.printStackTrace();
-            }
+                System.out.println("Error sending server info: " + e.getMessage());
             }
         }
     }
@@ -140,26 +141,24 @@ public class Server implements User, AutoCloseable {
     public Server() {
         
         try {
-            this.socket = new ServerSocket(50000);
-            this.HOSTNAME = InetAddress.getLocalHost().getHostName();
-            System.out.println("Server HOSTNAME: "  + HOSTNAME + ", IP: " + InetAddress.getLocalHost().getHostAddress());
+            this.address = getAddress();
+            this.socket = new ServerSocket(50000, 50, this.address);
+            this.HOSTNAME = address.getHostName();
+            System.out.println("Server HOSTNAME: "  + HOSTNAME + ", IP: " + address.getHostAddress());
             
-        } catch (UnknownHostException e1) {
-            System.out.println("Failed to initialize server info cache");
-            this.HOSTNAME = "localhost";
-        } catch (IOException e0) {
-            System.out.println("Failed to initialize server socket");
+        }
+        catch (IOException e) {
+            System.out.println("Failed to initialize server socket on port 50000");
             try {
-                this.socket = new ServerSocket(0);
-                this.HOSTNAME = InetAddress.getLocalHost().getHostName();
+                this.socket = new ServerSocket(0, 50, this.address);
+                this.HOSTNAME = address.getHostName();
             }
-            catch (IOException e) {
+            catch (IOException ex) {
                 System.out.println("Failed to initialize server socket on random port");
                 this.socket = null;
-                this.HOSTNAME = "localhost";
             }
         }
-
+        
         if (socket == null) {
                 return;
         }
@@ -193,54 +192,63 @@ public class Server implements User, AutoCloseable {
             try {
             Socket client = socket.accept();
             System.out.println("Client connected: " + client.getRemoteSocketAddress());
+            
+            sendWelcome(client, ("WELCOME to " + getName() + "'s server!").getBytes());
             clients.add(client);
             pool.submit(new ClientHandler(client));
-            sendClient(client, ("WELCOME to " + getName() + "'s server!").getBytes());
-            sendBoard(client, null);
+            //sendBoard(client, null);
             }
             catch (IOException e) {
-                e.printStackTrace();
+                System.out.println("Error accepting client connection: " + e.getMessage());
             }
              //send entire javafx scene tree on connect
             //can I leverage this against what the client already has stored?
         }
     }
     public void broadcast(byte[] message) {
-        //probably a better way to do this
-        for(Socket client : clients) {
-            //send message to client
-            try {
-                DataOutputStream writer = new DataOutputStream(client.getOutputStream());
-                writer.writeInt(MessageType.BROADCAST.getValue()); //type of message
-                writer.writeInt(message.length); //length of message
-                writer.write(message);
-                writer.flush();
-            } catch (IOException e) {
-                e.printStackTrace();
-            }
-        }
+        broadcast(Message.fromBytes(message));
+        // //probably a better way to do this
+        // for(Socket client : clients) {
+        //     //send message to client
+        //     try {
+        //         DataOutputStream writer = new DataOutputStream(client.getOutputStream());
+        //         writer.writeInt(MessageType.BROADCAST.getValue()); //type of message
+        //         writer.writeInt(getName().getBytes().length); //sender length
+        //         writer.writeInt(message.length); //length of message
+        //         writer.write(getName().getBytes(), 0, getName().getBytes().length);
+        //         writer.write(message);
+        //         writer.flush();
+        //     } catch (IOException e) {
+        //         System.out.println("Error sending message to client: " + e.getMessage());
+        //     }
+        // }
     }
     public void broadcast(Message message) {
         //probably a better way to do this
+        message.type |= MessageType.BROADCAST.getValue();
         for(Socket client : clients) {
             //send message to client
             try {
                 DataOutputStream writer = new DataOutputStream(client.getOutputStream());
-                writer.writeInt(MessageType.BROADCAST.getValue()); //type of message
+                writer.writeInt(message.type); //type of message
+                writer.writeInt(message.sender.getBytes().length); //sender length
                 writer.writeInt(message.messageData.length); //length of message
-                writer.write(message.messageData);
+                writer.write(message.sender.getBytes(), 0, message.sender.getBytes().length);
+                writer.write(message.messageData, 0, message.messageData.length);
                 writer.flush();
             } catch (IOException e) {
-                e.printStackTrace();
+                System.out.println("Error sending message to client: " + e.getMessage());
             }
         }
     }
-    public void sendClient(Socket client, byte[] message) {
+    public void sendWelcome(Socket client, byte[] message) {
         try {
             DataOutputStream writer = new DataOutputStream(client.getOutputStream());
-            writer.writeInt(MessageType.MESSAGE.getValue()); //type of message
+            writer.writeInt(MessageType.WELCOME.getValue()); //type of message
+            writer.writeInt(getName().getBytes().length); //sender length
             writer.writeInt(message.length); //length of message
-            writer.write(message);
+            writer.write(getName().getBytes(), 0, getName().getBytes().length);
+            writer.write(message, 0, message.length);
             writer.flush();
         } catch (IOException e) {
             e.printStackTrace();
@@ -248,20 +256,23 @@ public class Server implements User, AutoCloseable {
     }
     
     public void sendBoard(Socket client, byte[] Board) {
-        
+        //Send the chat styles to the client??
     }
 
     public void send(byte[] message) {
+        System.out.println("Sending message: " + new String(message));
         broadcast(message);
     }
 
     public void send(Message message) {
+        if ((message.type & MessageType.TYPING.getValue()) == 0) {
+            System.out.println("Broadcasting message from " + message.sender + ": " + new String(message.messageData));
+        }
         broadcast(message);
     }
 
     public byte[] receive() {
         //handle incoming message
-        //may not need this, as the server is only responsible for broadcasting messages to clients, not processing them
         return messages.peekFirst().messageData;
     }
 
@@ -287,21 +298,21 @@ public class Server implements User, AutoCloseable {
             return socket.getInetAddress();
         }
         try {
-        Enumeration<NetworkInterface> interfaces = NetworkInterface.getNetworkInterfaces();
+            Enumeration<NetworkInterface> interfaces = NetworkInterface.getNetworkInterfaces();
 
-        while (interfaces.hasMoreElements()) {
-            NetworkInterface iface = interfaces.nextElement();
-            if (iface.isLoopback() || iface.isUp() == false || iface.isVirtual()) {
-                continue;
-            }
-            Enumeration<InetAddress> addresses = iface.getInetAddresses();
-            while (addresses.hasMoreElements()) {
-                InetAddress addr = addresses.nextElement();
-                if (!addr.isLoopbackAddress() && addr instanceof Inet6Address) {
-                    return addr;
+            while (interfaces.hasMoreElements()) {
+                NetworkInterface iface = interfaces.nextElement();
+                if (iface.isLoopback() || iface.isUp() == false || iface.isVirtual()) {
+                    continue;
+                }
+                Enumeration<InetAddress> addresses = iface.getInetAddresses();
+                while (addresses.hasMoreElements()) {
+                    InetAddress addr = addresses.nextElement();
+                    if (!addr.isLoopbackAddress()) {
+                        return addr;
+                    }
                 }
             }
-        }
         }
         catch (SocketException s) {
             System.out.println("Failed to get network interfaces");
@@ -332,5 +343,10 @@ public class Server implements User, AutoCloseable {
     }
     public SoftReference<ServerCache> getServerCacheRef() {
         return this.cacheRef;
+    }
+
+    @Override
+    public ServerInfo getInfo() {
+        return info;
     }
 }

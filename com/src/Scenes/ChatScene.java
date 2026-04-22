@@ -19,13 +19,16 @@ import Network.ServerInfo;
 import Network.User;
 import javafx.scene.image.Image;
 import javafx.scene.layout.HBox;
+import javafx.scene.layout.StackPane;
 import javafx.util.Pair;
 
 public class ChatScene extends AppSceneTemplate {
     private Sidebar sidebar;
     private ChatComp chatComp;
     private ServerList serverList;
-    private HBox root;
+    private StackPane root;
+    private User u = null;
+    private HBox hbox;
 
     private void initStyles() {
         try {
@@ -40,24 +43,25 @@ public class ChatScene extends AppSceneTemplate {
     public ChatScene() {
         super();
         initStyles();
-
-        this.root = new HBox();
+        this.root = new StackPane();
+        this.hbox = new HBox();
 
         this.sidebar = new Sidebar();
         this.sidebar.setOnAddServer(this::openServerOverlay);
         this.sidebar.setOnServerSelect(this::enterServer);
 
-        this.chatComp = new ChatComp();
+        this.chatComp = null;
         
         this.root.setMaxHeight(Double.MAX_VALUE);
         this.root.setMaxWidth(Double.MAX_VALUE);
-        this.root.setFillHeight(true);
+        this.hbox.setFillHeight(true);
         
         // Make children stretch to fill the HBox
-        HBox.setHgrow(this.sidebar, javafx.scene.layout.Priority.ALWAYS);
-        HBox.setHgrow(this.chatComp, javafx.scene.layout.Priority.ALWAYS);
+        //HBox.setHgrow(this.sidebar, javafx.scene.layout.Priority.ALWAYS);
         
-        this.root.getChildren().addAll(this.sidebar, this.chatComp);
+        
+        this.hbox.getChildren().add(this.sidebar);
+        this.root.getChildren().add(this.hbox);
         this.setRoot(this.root);
 
 
@@ -66,37 +70,47 @@ public class ChatScene extends AppSceneTemplate {
         super(width, height);
         initStyles();
 
-        this.root = new HBox();
+        this.root = new StackPane();
+        this.hbox = new HBox();
 
         this.sidebar = new Sidebar();
         this.sidebar.setOnAddServer(this::openServerOverlay);
         this.sidebar.setOnServerSelect(this::enterServer);
 
-        this.chatComp = new ChatComp();
+        this.chatComp = null;
         
         this.root.setMaxHeight(Double.MAX_VALUE);
         this.root.setMaxWidth(Double.MAX_VALUE);
-        this.root.setFillHeight(true);
+        this.hbox.setFillHeight(true);
         
         this.root.setPrefWidth(width);
         
         // Make children stretch to fill the HBox
-        HBox.setHgrow(this.sidebar, javafx.scene.layout.Priority.ALWAYS);
-        HBox.setHgrow(this.chatComp, javafx.scene.layout.Priority.ALWAYS);
+        //HBox.setHgrow(this.sidebar, javafx.scene.layout.Priority.ALWAYS);
         
-        this.root.getChildren().addAll(this.sidebar, this.chatComp);
+        this.hbox.getChildren().add(this.sidebar);
+        this.root.getChildren().add(this.hbox);
         this.setRoot(this.root);
     }
 
-    private void exchangeChatComp(User u) {
-        if (u == this.chatComp.getUser()) {
+    private void exchangeChatComp() {
+        if (u == null) {
+            return;
+        }
+        if (this.chatComp != null && u == this.chatComp.getUser()) {
             //do nothing
             return;
         }
         //Does anything need to be done to the old chatComp?
-        this.root.getChildren().remove(this.chatComp);
-        this.chatComp = new ChatComp(u);
-        this.root.getChildren().add(this.chatComp);
+        if (this.chatComp != null) {
+            int chatCompIndex = this.hbox.getChildren().indexOf(this.chatComp);
+            this.hbox.getChildren().remove(this.chatComp);
+            this.chatComp = new ChatComp(u);
+            this.hbox.getChildren().add(chatCompIndex, this.chatComp);
+        } else {
+            this.chatComp = new ChatComp(u);
+            this.hbox.getChildren().add(this.chatComp);
+        }
     }
 
     public void openServerOverlay() {
@@ -115,22 +129,20 @@ public class ChatScene extends AppSceneTemplate {
             return;
         }
         int port = server.socket.getLocalPort(); //default port
-        ServerInfo info = addServerToSidebar(new Pair<>(server.getAddress(), port));
-        if (info != null) {
-            exchangeChatComp(server);
-        }
+        addServerToSidebar(new Pair<>(server.getAddress(), port));
+        setUser(server);
     }
     public void enterServer(ServerInfo info) {
         if (info == null) {
             System.err.println("From enterServer(), ServerInfo is null, cannot enter server");
             return;
         }
-        if (info.SERVER_ADDRESS.equals(this.chatComp.getUser().getAddress())) {
-            //already in this server, do nothing
+        if (u != null &&info.SERVER_ADDRESS.equals(u.getAddress())) {
+            //entering a server that you are already in
             return;
         }
         Client c = new Client(info.SERVER_ADDRESS, info.SERVER_PORT);
-        exchangeChatComp(c);
+        setUser(c);
         //add all messages in the message queue
         info.messageQueue.ifPresent((mqueue) -> mqueue.forEach((msg) -> this.chatComp.addMessage(msg)));
     }
@@ -184,5 +196,10 @@ public class ChatScene extends AppSceneTemplate {
         //load from disk
         this.serverList = new ServerList(s);
         loadServers();
+    }
+
+    public void setUser(User user) {
+        this.u = user;
+        exchangeChatComp();
     }
 }

@@ -2,72 +2,158 @@ package Components;
 
 
 
+
+import Assets.AudioCallIcon;
+import Assets.DisconnectIcon;
+import Assets.VideoCallIcon;
+import Network.ServerInfo;
+import javafx.beans.property.SimpleStringProperty;
 import javafx.geometry.Pos;
+import javafx.scene.control.Button;
 import javafx.scene.control.Label;
+import javafx.scene.image.Image;
+import javafx.scene.image.ImageView;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
 import javafx.scene.layout.Region;
 import javafx.scene.layout.VBox;
 
 public class ChatNav extends HBox{
-
-    public ChatNav() {
+    ServerInfo info;
+    private Button audioCallBtn;
+    private Button videoCallBtn;
+    private Runnable onAudioCall;
+    private Runnable onVideoCall;
+    private boolean isAudioCallActive = false;
+    private boolean isVideoCallActive = false;
+    public ChatNav(ServerInfo info) {
+        this.info = info;
         this.getStyleClass().add("navbar");
         this.setMaxHeight(40);
-        this.setSpacing(0);
+        this.setMaxWidth(Double.MAX_VALUE);
+        this.setSpacing(40);  // Add spacing between components
+        HBox.setHgrow(this, Priority.ALWAYS);
         
-        // Spacer (3 parts)
-        Region spacerGrow = new Region();
-        HBox.setHgrow(spacerGrow, Priority.ALWAYS);
-        spacerGrow.setMinWidth(0);
-        spacerGrow.setPrefWidth(3);
+        // User label (3 parts)
+        Label titleLabel;
+        if (info == null) {
+            titleLabel = new Label("Unknown Server");
+        }
+        else {
+            titleLabel = new Label(info.SERVER_NAME.get());
+            titleLabel.textProperty().bind(info.SERVER_NAME);
+        }
+        titleLabel.setStyle("-fx-text-fill: #e11212;");
+        //titleLabel.setAlignment(Pos.CENTER);
+        titleLabel.setMinWidth(titleLabel.getText().length());
+        titleLabel.setPrefWidth(Region.USE_COMPUTED_SIZE);
         
-        // User label (4 parts)
-        VBox userContainer = new VBox();
-        HBox.setHgrow(userContainer, Priority.ALWAYS);
-        userContainer.setMinWidth(0);
-        userContainer.setPrefWidth(4);
-        userContainer.setAlignment(Pos.CENTER);
-        Label userLabel = new Label("User");
-        userLabel.setStyle("-fx-text-fill: #ffffff;");
-        userContainer.getChildren().add(userLabel);
+        // Spacer to push buttons to the right
+        Region spacer = new Region();
+        spacer.prefWidthProperty().bind(this.widthProperty().multiply(0.5));
+        HBox.setHgrow(spacer, Priority.ALWAYS);
         
-        // Profile link (5 parts)
-        VBox profileContainer = new VBox();
-        HBox.setHgrow(profileContainer, Priority.ALWAYS);
-        profileContainer.setMinWidth(0);
-        profileContainer.setPrefWidth(5);
-        profileContainer.setAlignment(Pos.CENTER);
-        Label profileLink = new Label("Profile");
-        profileLink.setStyle("-fx-text-fill: #0066cc; -fx-cursor: hand;");
-        profileLink.setOnMouseEntered(e -> profileLink.setStyle("-fx-text-fill: #0052a3; -fx-cursor: hand; -fx-underline: true;"));
-        profileLink.setOnMouseExited(e -> profileLink.setStyle("-fx-text-fill: #0066cc; -fx-cursor: hand;"));
-        profileLink.setOnMouseClicked(e -> onProfileSelected());
-        profileContainer.getChildren().add(profileLink);
+        // Button for audio call (5 parts)
+        //TODO: make a ICON object for this
+        audioCallBtn = new Button();
+        double buttonSize = 10;
+        audioCallBtn.setMinSize(buttonSize, buttonSize);
+        audioCallBtn.setPrefSize(buttonSize, buttonSize);
+        audioCallBtn.setMaxSize(Double.MAX_VALUE, Double.MAX_VALUE);
+        // Bind height to width to maintain square aspect ratio
+        audioCallBtn.prefHeightProperty().bind(audioCallBtn.widthProperty());
+        audioCallBtn.setGraphic(new AudioCallIcon());
         
-        // Logout link (3 parts)
-        VBox logoutContainer = new VBox();
-        HBox.setHgrow(logoutContainer, Priority.ALWAYS);
-        logoutContainer.setMinWidth(0);
-        logoutContainer.setPrefWidth(3);
-        logoutContainer.setAlignment(Pos.CENTER);
-        Label logoutLink = new Label("Logout");
-        logoutLink.setStyle("-fx-text-fill: #0066cc; -fx-cursor: hand;");
-        logoutLink.setOnMouseEntered(e -> logoutLink.setStyle("-fx-text-fill: #0052a3; -fx-cursor: hand; -fx-underline: true;"));
-        logoutLink.setOnMouseExited(e -> logoutLink.setStyle("-fx-text-fill: #0066cc; -fx-cursor: hand;"));
-        logoutLink.setOnMouseClicked(e -> onLogoutSelected());
-        logoutContainer.getChildren().add(logoutLink);
+        audioCallBtn.getStyleClass().add("audio-call-btn");
+        audioCallBtn.setOnMouseEntered(e -> audioCallBtn.getStyleClass().add("audio-call-btn-hover"));
+        audioCallBtn.setOnMouseExited(e -> audioCallBtn.getStyleClass().remove("audio-call-btn-hover"));
+        audioCallBtn.setOnMouseClicked(e -> {
+            isAudioCallActive = !isAudioCallActive;
+            updateAudioCallBtn();
+            if (onAudioCall != null) onAudioCall.run();
+        });
+        //audioCallBtn.setAlignment(Pos.CENTER);
         
-        this.getChildren().addAll(spacerGrow, userContainer, profileContainer, logoutContainer);
+        // Logout link (5 parts)
+        videoCallBtn = new Button();
+        videoCallBtn.setMinSize(buttonSize, buttonSize);
+        videoCallBtn.setPrefSize(buttonSize, buttonSize);
+        videoCallBtn.setMaxSize(Double.MAX_VALUE, Double.MAX_VALUE);
+        // Bind height to width to maintain square aspect ratio
+        videoCallBtn.prefHeightProperty().bind(videoCallBtn.widthProperty());
+        videoCallBtn.setGraphic(new VideoCallIcon());
+        videoCallBtn.getStyleClass().add("video-call-btn");
+        videoCallBtn.setOnMouseEntered(e -> videoCallBtn.getStyleClass().add("video-call-btn-hover"));
+        videoCallBtn.setOnMouseExited(e -> videoCallBtn.getStyleClass().remove("video-call-btn-hover"));
+        videoCallBtn.setOnMouseClicked(e -> {
+            isVideoCallActive = !isVideoCallActive;
+            updateVideoCallBtn();
+            if (onVideoCall != null) onVideoCall.run();
+        });
+        //videoCallBtn.setAlignment(Pos.CENTER);
+        
+        // Disconnect Button
+        Button disconnectBtn = new Button();
+        disconnectBtn.setMinSize(buttonSize, buttonSize);
+        disconnectBtn.setPrefSize(buttonSize, buttonSize);
+        disconnectBtn.setMaxSize(Double.MAX_VALUE, Double.MAX_VALUE);
+        // Bind height to width to maintain square aspect ratio
+        disconnectBtn.prefHeightProperty().bind(disconnectBtn.widthProperty());
+        disconnectBtn.setGraphic(new DisconnectIcon());
+        disconnectBtn.getStyleClass().add("disconnect-btn");
+        disconnectBtn.setOnMouseEntered(e -> disconnectBtn.getStyleClass().add("disconnect-btn-hover"));
+        disconnectBtn.setOnMouseExited(e -> disconnectBtn.getStyleClass().remove("disconnect-btn-hover"));
+        disconnectBtn.setOnMouseClicked(e -> onDisconnect());
+        //disconnectBtn.setAlignment(Pos.CENTER);
+        
+        this.getChildren().addAll(titleLabel, spacer, audioCallBtn, videoCallBtn, disconnectBtn);
     }
     
-    private void onProfileSelected() {
-        System.out.println("Profile selected");
-        // TODO: Handle profile selection
+    private void updateAudioCallBtn() {
+        if (isAudioCallActive) {
+            audioCallBtn.getStyleClass().add("audio-call-btn-active");
+        } else {
+            audioCallBtn.getStyleClass().remove("audio-call-btn-active");
+        }
     }
     
-    private void onLogoutSelected() {
-        System.out.println("Logout selected");
-        // TODO: Handle logout selection
+    private void updateVideoCallBtn() {
+        if (isVideoCallActive) {
+            videoCallBtn.getStyleClass().add("video-call-btn-active");
+        } else {
+            videoCallBtn.getStyleClass().remove("video-call-btn-active");
+        }
+    }
+
+    public void setIsAudioCallActive(boolean isActive) {
+        this.isAudioCallActive = isActive;
+        updateAudioCallBtn();
+    }
+
+    public void setIsVideoCallActive(boolean isActive) {
+        this.isVideoCallActive = isActive;
+        updateVideoCallBtn();
+    }
+    
+    public void setOnAudioCall(Runnable onAudioCall) {
+        this.onAudioCall = onAudioCall;
+    }
+    
+    public void setOnVideoCall(Runnable onVideoCall) {
+        this.onVideoCall = onVideoCall;
+    }
+    
+    private void onAudioCall() {
+        System.out.println("Audio call initiated");
+        // TODO: Handle audio call initiation
+    }
+    
+    private void onVideoCall() {
+        System.out.println("Video call initiated");
+        // TODO: Handle video call initiation
+    }
+
+    private void onDisconnect() {
+        System.out.println("Disconnecting from server");
     }
 }

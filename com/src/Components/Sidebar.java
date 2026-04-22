@@ -20,22 +20,36 @@ public class Sidebar extends ScrollPane {
     VBox core;
     Runnable onAddServer = () -> {System.out.println("You must add functionality to this button! (Add Server)");};
     Consumer<ServerInfo> onServerSelect = (serverInfo) -> {System.out.println("You must add functionality to this button! (Server selected)");};
+    int hightlightedIdx = -1;
     public Sidebar() {
         this.getStyleClass().add("sidebar-style");
         setMaxHeight(Double.MAX_VALUE);
         setMaxWidth(Double.MAX_VALUE);
-        this.core = new VBox();
-        this.core.setSpacing(15);
+        setMinWidth(20);
+        setMinHeight(80);
 
-        
+
+        //Core VBox (where server entries are added)
+        this.core = new VBox();
+        this.core.setSpacing(10);
+        this.core.getStyleClass().add("sidebar-core");
+        this.core.setMaxHeight(Double.MAX_VALUE);
+        this.core.setMaxWidth(Double.MAX_VALUE);
+        VBox.setVgrow(this.core, Priority.ALWAYS);
+        HBox.setHgrow(this.core, Priority.ALWAYS);
+
         // Create plus button
         StackPane plusButton = createPlusButton();
         plusButton.setAlignment(Pos.TOP_CENTER);
-        VBox.setVgrow(this.core, Priority.ALWAYS);
-        HBox.setHgrow(this.core, Priority.ALWAYS);
+        
         this.core.getChildren().add(plusButton);
         this.core.setAlignment(Pos.TOP_CENTER);
+        //this.setOnMouseClicked((e) -> this.setStyle("-fx-border-color: #00ff00; -fx-border-width: 3;"));
         this.setContent(this.core);
+        this.setFitToHeight(true);
+        this.setFitToWidth(true);
+        this.setHbarPolicy(ScrollPane.ScrollBarPolicy.NEVER);
+        this.setVbarPolicy(ScrollPane.ScrollBarPolicy.AS_NEEDED);
 
     }
     
@@ -80,6 +94,7 @@ public class Sidebar extends ScrollPane {
     public void addServerEntry(ServerEntry entry) {
         entry.setOnMouseClicked((e) -> {
             onServerSelect.accept(entry.getServerInfo());
+            highlightEntry(this.core.getChildren().size()-1);
         });
         this.core.getChildren().add(entry);
     }
@@ -93,4 +108,11 @@ public class Sidebar extends ScrollPane {
         this.onServerSelect = onServerSelect;
     }
 
+    public void highlightEntry(int idx) {
+        if (hightlightedIdx != -1) {
+            this.core.getChildren().get(hightlightedIdx).setStyle(""); //reset old highlight
+        }
+        this.core.getChildren().get(idx).setStyle("-fx-border-color: #00ff00; -fx-border-width: 3;");
+        this.hightlightedIdx = idx;
+    }
 }
