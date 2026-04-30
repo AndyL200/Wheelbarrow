@@ -1,0 +1,244 @@
+/* ============================================================
+ * lightTheme.css — light color palette
+ * Loaded together with baseStyles.css by ThemeManager.
+ * ============================================================ */
+
+/* === ROOT === */
+.root {
+    -fx-base: #FFFFFF;
+    -fx-background: #F0F4F8;
+    -fx-control-inner-background: #FFFFFF;
+    -fx-accent: #2563EB;
+}
+
+/* === SCROLL-PANE === */
+.scroll-pane > .viewport {
+    -fx-background-color: transparent;
+}
+.scroll-bar {
+    -fx-background-color: #DDE6F0;
+}
+.scroll-bar > .thumb {
+    -fx-background-color: #7AA0C4;
+    -fx-background-radius: 4;
+}
+.scroll-bar > .track {
+    -fx-background-color: #ECF2F8;
+}
+.scroll-bar > .increment-button,
+.scroll-bar > .decrement-button {
+    -fx-background-color: #DDE6F0;
+    -fx-padding: 2;
+}
+
+/* === SIDEBAR === */
+.sidebar-style {
+    -fx-background-color: #DDE6F0;
+}
+.sidebar-core {
+    -fx-background-color: #DDE6F0;
+}
+.sidebar-add-btn-circle {
+    -fx-fill: #B0C8E0;
+    -fx-stroke: #7AA0C4;
+    -fx-stroke-width: 2;
+}
+.sidebar-add-btn-circle-hover {
+    -fx-fill: #9AB8D4;
+    -fx-stroke: #2563EB;
+    -fx-stroke-width: 2;
+}
+.sidebar-add-btn-label {
+    -fx-text-fill: #1A2433;
+}
+.server-entry-selected {
+    -fx-border-color: #2563EB;
+}
+
+/* === NAVBAR === */
+.navbar {
+    -fx-background-color: #FFFFFF;
+    -fx-border-color: #DDE6F0;
+}
+.server-title-label {
+    -fx-text-fill: #1A2433;
+}
+.audio-call-btn {
+    -fx-background-color: transparent;
+}
+.audio-call-btn-hover {
+    -fx-background-color: rgba(0,0,0,0.06);
+}
+.audio-call-btn-active {
+    -fx-background-color: rgba(67,160,71,0.18);
+    -fx-border-color: #43A047;
+}
+.video-call-btn {
+    -fx-background-color: transparent;
+}
+.video-call-btn-hover {
+    -fx-background-color: rgba(0,0,0,0.06);
+}
+.video-call-btn-active {
+    -fx-background-color: rgba(30,136,229,0.18);
+    -fx-border-color: #1E88E5;
+}
+.disconnect-btn {
+    -fx-background-color: transparent;
+}
+.disconnect-btn-hover {
+    -fx-background-color: rgba(229,57,53,0.12);
+}
+
+/* === CHAT === */
+.chat-comp {
+    -fx-background-color: #F0F4F8;
+}
+.chat-box {
+    -fx-background-color: #F0F4F8;
+}
+.send-box {
+    -fx-background-color: #FFFFFF;
+    -fx-border-color: #DDE6F0;
+}
+.msg-input {
+    -fx-background-color: #FFFFFF;
+    -fx-text-fill: #1A2433;
+    -fx-prompt-text-fill: #8FA8BF;
+    -fx-border-color: #B0C8E0;
+}
+.msg-input:focused {
+    -fx-border-color: #2563EB;
+}
+.send-btn {
+    -fx-background-color: #2563EB;
+    -fx-text-fill: #ffffff;
+}
+.send-btn:hover {
+    -fx-background-color: #1D4EBB;
+}
+.message-label {
+    -fx-text-fill: #1A2433;
+    -fx-background-color: #FFFFFF;
+}
+
+/* === CALL COMPONENTS — AUDIO === */
+.audio-call-comp {
+    -fx-background-color: rgba(0,0,0,0.45);
+}
+.audio-call-container {
+    -fx-background-color: #FFFFFF;
+    -fx-border-color: #43A047;
+}
+.audio-call-users {
+    -fx-background-color: transparent;
+}
+.audio-user-placeholder {
+    -fx-background-color: #F0F4F8;
+    -fx-border-color: #B0C8E0;
+}
+.audio-user-label {
+    -fx-text-fill: #1A2433;
+}
+.audio-call-controls {
+    -fx-background-color: #F0F4F8;
+}
+.audio-control-btn {
+    -fx-background-color: #43A047;
+    -fx-text-fill: #ffffff;
+}
+.audio-control-btn:hover {
+    -fx-background-color: #388E3C;
+}
+.audio-end-call-btn {
+    -fx-background-color: #E53935;
+    -fx-text-fill: #ffffff;
+}
+.audio-end-call-btn:hover {
+    -fx-background-color: #C62828;
+}
+.audio-exit-btn {
+    -fx-background-color: #78909C;
+    -fx-text-fill: #ffffff;
+}
+.audio-exit-btn:hover {
+    -fx-background-color: #607D8B;
+}
+
+/* === CALL COMPONENTS — VIDEO === */
+.video-call-comp {
+    -fx-background-color: rgba(0,0,0,0.45);
+}
+.video-call-container {
+    -fx-background-color: #FFFFFF;
+    -fx-border-color: #1E88E5;
+}
+.video-call-users {
+    -fx-background-color: transparent;
+}
+.video-user-placeholder {
+    -fx-background-color: #F0F4F8;
+    -fx-border-color: #B0C8E0;
+}
+.video-user-label {
+    -fx-text-fill: #1A2433;
+}
+.video-call-controls {
+    -fx-background-color: #F0F4F8;
+}
+.video-control-btn {
+    -fx-background-color: #1E88E5;
+    -fx-text-fill: #ffffff;
+}
+.video-control-btn:hover {
+    -fx-background-color: #1565C0;
+}
+.video-end-call-btn {
+    -fx-background-color: #E53935;
+    -fx-text-fill: #ffffff;
+}
+.video-end-call-btn:hover {
+    -fx-background-color: #C62828;
+}
+.video-exit-btn {
+    -fx-background-color: #78909C;
+    -fx-text-fill: #ffffff;
+}
+.video-exit-btn:hover {
+    -fx-background-color: #607D8B;
+}
+
+/* === SERVER OVERLAY === */
+.add-server-dark-bg {
+    -fx-background-color: rgba(0,0,0,0.4);
+}
+.add-server-content {
+    -fx-background-color: #FFFFFF;
+}
+.add-server-exit-circle {
+    -fx-fill: #E53935;
+    -fx-stroke: transparent;
+}
+.add-server-exit-label {
+    -fx-text-fill: #ffffff;
+}
+.add-server-title {
+    -fx-text-fill: #1A2433;
+}
+.add-server-label {
+    -fx-text-fill: #5A7490;
+}
+.add-server-submit-btn {
+    -fx-background-color: #2563EB;
+    -fx-text-fill: #ffffff;
+}
+.add-server-submit-btn:hover {
+    -fx-background-color: #1D4EBB;
+}
+.add-server-create-btn {
+    -fx-background-color: #388E3C;
+    -fx-text-fill: #ffffff;
+}
+.add-server-create-btn:hover {
+    -fx-background-color: #2E7D32;
+}

@@ -55,8 +55,7 @@ public class CallComp extends StackPane {
         // Add placeholder users for demo
         for (int i = 0; i < 4; i++) {
             Label userPlaceholder = new Label("User " + (i + 1));
-            userPlaceholder.setStyle("-fx-text-fill: #ffffff; -fx-font-size: 12px;");
-            userPlaceholder.getStyleClass().add("audio-user-placeholder");
+            userPlaceholder.getStyleClass().addAll("audio-user-placeholder", "audio-user-label");
             userPlaceholder.setMinSize(100, 100);
             userPlaceholder.setAlignment(Pos.CENTER);
             this.callUsers.add(userPlaceholder, i % 2, i / 2);
