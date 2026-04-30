@@ -32,13 +32,12 @@ public class Client implements User {
     public String SERVER_HOSTNAME = ""; 
     private ServerInfo info;
     private String HOSTNAME;
+    private String displayName = null;
     private InetAddress ADDRESS;
     private DataInputStream reader;
     private DataOutputStream writer;
     private Consumer<Message> onMessageReceived;
     private SecretKey sessionKey;
-    private String loginUsername;
-    private String loginPassword;
     
 
     public Client(InetAddress address) {
@@ -103,45 +102,6 @@ public class Client implements User {
         }
     }
 
-    /**
-     * Creates a client with AES-GCM encryption and an optional login.
-     * The {@code password} derives the shared session key (must match the
-     * server's password). If {@code username} and {@code password} are
-     * non-null the client will send a LOGIN message after the WELCOME
-     * handshake.
-     */
-    public Client(InetAddress address, int port, Consumer<Message> listener,
-                  String username, String password) {
-        this.SERVER_HOSTNAME = address.getHostName();
-        getClientAddress();
-        HOSTNAME = ADDRESS != null ? ADDRESS.getHostName() : "Unknown Client";
-        if (SERVER_HOSTNAME.equals(HOSTNAME)) {
-            HOSTNAME += "_1";
-        }
-        this.onMessageReceived = listener;
-        this.loginUsername = username;
-        this.loginPassword = password;
-        if (password != null && !password.isEmpty()) {
-            try {
-                this.sessionKey = Security.getKeyFromPassword(password, SESSION_SALT);
-                System.out.println("Client: session key derived from password");
-            } catch (Exception e) {
-                System.out.println("Client: failed to derive session key - " + e.getMessage());
-            }
-        }
-        try {
-            SERVER = new Socket(address, port);
-            reader = new DataInputStream(SERVER.getInputStream());
-            writer = new DataOutputStream(SERVER.getOutputStream());
-            info = new ServerInfo("loading...", SERVER.getInetAddress(), SERVER.getPort(), null);
-            Thread receiveThread = new Thread(this::receiveLoop);
-            receiveThread.setDaemon(true);  // Exit with app
-            receiveThread.start();
-        } catch (IOException e) {
-            System.out.println("Error connecting to server: " + e.getMessage());
-        }
-    }
-
 
     private void receiveLoop() {
         while(running) {
@@ -152,7 +112,7 @@ public class Client implements User {
                     System.out.println("Received invalid message");
                     continue;
                 }
-                if (msg.sender.equals(HOSTNAME)) {
+                if (msg.sender.equals(getName())) {
                     System.out.println("Received message from self, ignoring");
                     continue;
                 }
@@ -174,23 +134,13 @@ public class Client implements User {
                     SERVER_HOSTNAME = msg.sender;
                     info.SERVER_NAME.set(SERVER_HOSTNAME);
                     //send a request for server info
-                    send(new Message(HOSTNAME, "Request", MessageType.SERVER_INFO.getValue()));
+                    send(new Message(getName(), "Request", MessageType.SERVER_INFO.getValue()));
                     requestInfo();
-                    //send login credentials if configured
-                    if (loginUsername != null && loginPassword != null) {
-                        sendLogin();
-                    }
                 }
                 else if ((msg.type & MessageType.SERVER_INFO.getValue()) > 0) {
                     // Probably an area where something specific happens because the message is directed towards this client
                     System.out.println("Received server info: " + new String(msg.messageData));
                     info = ServerInfo.parseMessage(msg);
-                }
-                else if ((msg.type & MessageType.AUTH_OK.getValue()) > 0) {
-                    System.out.println("Login accepted by server");
-                }
-                else if ((msg.type & MessageType.AUTH_FAIL.getValue()) > 0) {
-                    System.out.println("Login rejected by server");
                 }
                 else if ((msg.type & MessageType.BROADCAST.getValue()) > 0) {
                     //handle broadcast message, this is a message that should be sent to all users but not necessarily displayed in the chat
@@ -201,12 +151,6 @@ public class Client implements User {
                 }
             }
         }
-    }
-
-    /** Sends the stored username and password to the server as a LOGIN message. */
-    private void sendLogin() {
-        String payload = loginUsername + ":" + loginPassword;
-        send(new Message(HOSTNAME, payload, MessageType.LOGIN.getValue()));
     }
 
     /**
@@ -221,7 +165,7 @@ public class Client implements User {
         try {
             return Security.encryptBytes(payload, sessionKey);
         } catch (Exception e) {
-            System.out.println("Client: encryption failed – message will not be sent: " + e.getMessage());
+            System.out.println("Client: encryption failed - message will not be sent: " + e.getMessage());
             return null;
         }
     }
@@ -238,7 +182,7 @@ public class Client implements User {
         try {
             return Security.decryptBytes(data, sessionKey);
         } catch (Exception e) {
-            System.out.println("Client: decryption failed – message dropped: " + e.getMessage());
+            System.out.println("Client: decryption failed - message dropped: " + e.getMessage());
             return null;
         }
     }
@@ -310,8 +254,21 @@ public class Client implements User {
         this.onMessageReceived = listener;
     }
 
+    /**
+     * Returns the display name used in outgoing messages. If a display name
+     * has been set via {@link #setDisplayName(String)} that name is used;
+     * otherwise the network hostname is returned.
+     */
     public String getName() {
-        return HOSTNAME;
+        return displayName != null ? displayName : HOSTNAME;
+    }
+
+    /**
+     * Sets the display name shown to other users (e.g. the username chosen
+     * at login). Overrides the default network hostname.
+     */
+    public void setDisplayName(String name) {
+        this.displayName = name;
     }
 
     
@@ -351,7 +308,7 @@ public class Client implements User {
         return null;
     }
     private void requestInfo() {
-        send(new Message(HOSTNAME, "Request", MessageType.SERVER_INFO.getValue()));
+        send(new Message(getName(), "Request", MessageType.SERVER_INFO.getValue()));
     }
     @Override
     public ServerInfo getInfo() {

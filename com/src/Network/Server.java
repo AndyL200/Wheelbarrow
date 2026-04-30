@@ -1,5 +1,4 @@
 package Network;
-import java.net.Inet6Address;
 import java.net.InetAddress;
 import java.net.NetworkInterface;
 import java.net.ServerSocket;
@@ -7,17 +6,12 @@ import java.net.Socket;
 import java.net.SocketException;
 import java.net.UnknownHostException;
 import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collections;
 import java.util.Deque;
 import java.util.Enumeration;
-import java.util.HashSet;
 import java.util.List;
-import java.util.Set;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
-import java.util.concurrent.Semaphore;
 import java.util.function.Consumer;
 
 import Components.Message;
@@ -32,7 +26,6 @@ import java.lang.ref.SoftReference;
 import javax.crypto.SecretKey;
 
 
-
 //auto closeable to ensure program exits properly
 public class Server implements User, AutoCloseable {
     private static final String SESSION_SALT = "WheelbarrowSessionSalt2024";
@@ -41,6 +34,7 @@ public class Server implements User, AutoCloseable {
 
     public ServerSocket socket;
     public String HOSTNAME = "localhost";
+    private String displayName = null;
     private InetAddress ADDRESS;
     private ExecutorService pool = Executors.newFixedThreadPool(50);
     protected List<Socket> clients = new ArrayList<Socket>(0);
@@ -50,16 +44,10 @@ public class Server implements User, AutoCloseable {
     private SoftReference<ServerCache> cacheRef;
     private Thread acceptor;
     private SecretKey sessionKey;
-    private Set<Socket> authenticatedClients = Collections.synchronizedSet(new HashSet<>());
-    // Cached at start-up; re-evaluate with LocalCredentials.hasCredentials() if credentials are registered at runtime
-    private boolean authRequired = LocalCredentials.hasCredentials();
-
-    private static final int MAX_LOGIN_ATTEMPTS = 5;
 
     private class ClientHandler implements Callable<Void> {
         private Socket client;
         public int infractions = 0;
-        private int failedLoginAttempts = 0;
         ClientHandler(Socket client) {
             //handle client connection
             this.client = client;
@@ -90,19 +78,7 @@ public class Server implements User, AutoCloseable {
                     continue;
                 }
 
-                // Require successful LOGIN before allowing any other message type
-                boolean isAuthenticated = !authRequired || authenticatedClients.contains(client);
-
-                if ((type & MessageType.LOGIN.getValue()) > 0) {
-                    handleLogin(client, senderData, plainPayload);
-                }
-
-                else if (!isAuthenticated) {
-                    // Client has not logged in yet – ignore all other message types
-                    System.out.println("Unauthenticated message from " + client.getRemoteSocketAddress() + ", ignoring");
-                }
-
-                else if ((type & MessageType.SERVER_INFO.getValue()) > 0) {
+                if ((type & MessageType.SERVER_INFO.getValue()) > 0) {
                     //ignore, this is just a client requesting server info, not an actual message to broadcast
                     onMessageReceived.accept(new Message(new String(senderData), plainPayload, type));
                     server_info();
@@ -149,59 +125,7 @@ public class Server implements User, AutoCloseable {
 
                 Thread.sleep(100);
             }
-            authenticatedClients.remove(client);
             return null;
-        }
-
-        private void handleLogin(Socket client, byte[] senderData, byte[] payload) {
-            // Enforce brute-force limit before processing credentials
-            if (failedLoginAttempts >= MAX_LOGIN_ATTEMPTS) {
-                System.out.println("Too many login attempts from " + client.getRemoteSocketAddress() + ", closing connection");
-                sendAuthResult(client, false);
-                try { client.close(); } catch (IOException e) {
-                    System.out.println("Error closing client socket after too many login attempts: " + e.getMessage());
-                }
-                return;
-            }
-
-            String credentials = new String(payload);
-            int sep = credentials.indexOf(':');
-            if (sep < 0) {
-                failedLoginAttempts++;
-                sendAuthResult(client, false);
-                return;
-            }
-            String username = credentials.substring(0, sep);
-            String password = credentials.substring(sep + 1);
-            if (LocalCredentials.verify(username, password)) {
-                failedLoginAttempts = 0;
-                authenticatedClients.add(client);
-                System.out.println("Login accepted from " + client.getRemoteSocketAddress());
-                sendAuthResult(client, true);
-            } else {
-                failedLoginAttempts++;
-                System.out.println("Login failed from " + client.getRemoteSocketAddress()
-                        + " (attempt " + failedLoginAttempts + "/" + MAX_LOGIN_ATTEMPTS + ")");
-                sendAuthResult(client, false);
-            }
-        }
-
-        private void sendAuthResult(Socket client, boolean success) {
-            int resultType = success
-                    ? MessageType.AUTH_OK.getValue()
-                    : MessageType.AUTH_FAIL.getValue();
-            byte[] msg = success ? "OK".getBytes() : "FAIL".getBytes();
-            try {
-                DataOutputStream writer = new DataOutputStream(client.getOutputStream());
-                writer.writeInt(resultType);
-                writer.writeInt(getName().getBytes().length);
-                writer.writeInt(msg.length);
-                writer.write(getName().getBytes(), 0, getName().getBytes().length);
-                writer.write(msg, 0, msg.length);
-                writer.flush();
-            } catch (IOException e) {
-                System.out.println("Error sending auth result: " + e.getMessage());
-            }
         }
 
         public void server_info() {
@@ -262,7 +186,7 @@ public class Server implements User, AutoCloseable {
                 this.sessionKey = Security.getKeyFromPassword(password, SESSION_SALT);
                 System.out.println("Server: session key derived from password");
             } catch (Exception e) {
-                System.out.println("Server: failed to derive session key – " + e.getMessage());
+                System.out.println("Server: failed to derive session key - " + e.getMessage());
             }
         }
 
@@ -313,7 +237,7 @@ public class Server implements User, AutoCloseable {
         try {
             return Security.encryptBytes(payload, sessionKey);
         } catch (Exception e) {
-            System.out.println("Server: encryption failed – message will not be sent: " + e.getMessage());
+            System.out.println("Server: encryption failed - message will not be sent: " + e.getMessage());
             return null;
         }
     }
@@ -330,7 +254,7 @@ public class Server implements User, AutoCloseable {
         try {
             return Security.decryptBytes(data, sessionKey);
         } catch (Exception e) {
-            System.out.println("Server: decryption failed – message dropped: " + e.getMessage());
+            System.out.println("Server: decryption failed - message dropped: " + e.getMessage());
             return null;
         }
     }
@@ -415,9 +339,23 @@ public class Server implements User, AutoCloseable {
         return messages.peekFirst().messageData;
     }
 
+    /**
+     * Returns the display name used in outgoing messages. If a display name
+     * has been set via {@link #setDisplayName(String)} that name is used;
+     * otherwise the network hostname is returned.
+     */
     public String getName() {
-        return HOSTNAME;
+        return displayName != null ? displayName : HOSTNAME;
     }
+
+    /**
+     * Sets the display name shown to other users (e.g. the username chosen
+     * at login). Overrides the default network hostname.
+     */
+    public void setDisplayName(String name) {
+        this.displayName = name;
+    }
+
     public void setOnMessageReceived(Consumer<Message> listener) {
         this.onMessageReceived = listener;
     }       

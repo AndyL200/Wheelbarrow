@@ -1,10 +1,6 @@
 package Scenes;
 
-import java.net.Inet6Address;
 import java.net.InetAddress;
-import java.net.ServerSocket;
-import java.net.Socket;
-import java.net.UnknownHostException;
 
 import org.json.JSONObject;
 
@@ -29,6 +25,7 @@ public class ChatScene extends AppSceneTemplate {
     private StackPane root;
     private User u = null;
     private HBox hbox;
+    private String username;
 
     private void initStyles() {
         try {
@@ -42,32 +39,24 @@ public class ChatScene extends AppSceneTemplate {
 
     public ChatScene() {
         super();
-        initStyles();
-        this.root = new StackPane();
-        this.hbox = new HBox();
-
-        this.sidebar = new Sidebar();
-        this.sidebar.setOnAddServer(this::openServerOverlay);
-        this.sidebar.setOnServerSelect(this::enterServer);
-
-        this.chatComp = null;
-        
-        this.root.setMaxHeight(Double.MAX_VALUE);
-        this.root.setMaxWidth(Double.MAX_VALUE);
-        this.hbox.setFillHeight(true);
-        
-        // Make children stretch to fill the HBox
-        //HBox.setHgrow(this.sidebar, javafx.scene.layout.Priority.ALWAYS);
-        
-        
-        this.hbox.getChildren().add(this.sidebar);
-        this.root.getChildren().add(this.hbox);
-        this.setRoot(this.root);
-
-
+        this.username = null;
+        init();
     }
+
     public ChatScene(int width, int height) {
         super(width, height);
+        this.username = null;
+        init();
+    }
+
+    /** Preferred constructor – receives the local display name chosen at login. */
+    public ChatScene(int width, int height, String username) {
+        super(width, height);
+        this.username = username;
+        init();
+    }
+
+    private void init() {
         initStyles();
 
         this.root = new StackPane();
@@ -78,16 +67,11 @@ public class ChatScene extends AppSceneTemplate {
         this.sidebar.setOnServerSelect(this::enterServer);
 
         this.chatComp = null;
-        
+
         this.root.setMaxHeight(Double.MAX_VALUE);
         this.root.setMaxWidth(Double.MAX_VALUE);
         this.hbox.setFillHeight(true);
-        
-        this.root.setPrefWidth(width);
-        
-        // Make children stretch to fill the HBox
-        //HBox.setHgrow(this.sidebar, javafx.scene.layout.Priority.ALWAYS);
-        
+
         this.hbox.getChildren().add(this.sidebar);
         this.root.getChildren().add(this.hbox);
         this.setRoot(this.root);
@@ -123,29 +107,37 @@ public class ChatScene extends AppSceneTemplate {
 
     public void createServer() {
         //Grab local IP and port directly from the running server instance
-        Server server = new Server();    
+        Server server = new Server();
         if (server.socket == null) {
             System.err.println("Server failed to start, socket is null");
             return;
+        }
+        if (username != null) {
+            server.setDisplayName(username);
         }
         int port = server.socket.getLocalPort(); //default port
         addServerToSidebar(new Pair<>(server.getAddress(), port));
         setUser(server);
     }
+
     public void enterServer(ServerInfo info) {
         if (info == null) {
             System.err.println("From enterServer(), ServerInfo is null, cannot enter server");
             return;
         }
-        if (u != null &&info.SERVER_ADDRESS.equals(u.getAddress())) {
+        if (u != null && info.SERVER_ADDRESS.equals(u.getAddress())) {
             //entering a server that you are already in
             return;
         }
         Client c = new Client(info.SERVER_ADDRESS, info.SERVER_PORT);
+        if (username != null) {
+            c.setDisplayName(username);
+        }
         setUser(c);
         //add all messages in the message queue
         info.messageQueue.ifPresent((mqueue) -> mqueue.forEach((msg) -> this.chatComp.addMessage(msg)));
     }
+
     public ServerInfo addServerToSidebar(Pair<InetAddress, Integer> connectionInfo) {
         InetAddress address = connectionInfo.getKey();
         int port = connectionInfo.getValue();
@@ -155,6 +147,7 @@ public class ChatScene extends AppSceneTemplate {
         this.sidebar.addServerEntry(entry);
         return info;
     }
+
     public void addServerToList(ServerEntry entry) {
         JSONObject serverObj = new JSONObject();
         serverObj.put("SERVER_NAME", entry.getServerInfo().SERVER_NAME);
@@ -175,12 +168,12 @@ public class ChatScene extends AppSceneTemplate {
                     String b64Icon = serverObj.optString("Icon", null);
                     String address = serverObj.optString("Address", null);
                     int port = serverObj.getInt("Port");
-                    ServerInfo info = new ServerInfo(name, address, port, null);
+                    ServerInfo sinfo = new ServerInfo(name, address, port, null);
                     if (b64Icon != null) {
-                        entry = Sidebar.createServerEntry(info, new Image(b64Icon));
+                        entry = Sidebar.createServerEntry(sinfo, new Image(b64Icon));
                     }
                     else {
-                        entry = Sidebar.createServerEntry(info);
+                        entry = Sidebar.createServerEntry(sinfo);
                     }
 
                     this.sidebar.addServerEntry(entry);
