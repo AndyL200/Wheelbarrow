@@ -5,6 +5,10 @@ import java.util.function.Consumer;
 import java.util.function.Supplier;
 
 import Components.ComponentMacros.MessageType;
+import Components.Helper.CallConfig;
+import Components.Helper.VideoCallConfig;
+import Network.AudioCallClient;
+import Network.AudioCallServer;
 import Network.User;
 import javafx.application.Platform;
 import javafx.geometry.Pos;
@@ -27,8 +31,7 @@ public class ChatComp extends StackPane{
     private ChatNav chatNav;
     private ScrollPane scrollChat;
     private VBox core;
-    private AudioCallComp audioCallComp;
-    private VideoCallComp videoCallComp;
+    private CallComp callComp;
 
     public ChatComp(User user) {
         setMaxHeight(Double.MAX_VALUE);
@@ -42,7 +45,7 @@ public class ChatComp extends StackPane{
         this.user = user;
         user.setOnMessageReceived(m -> {
             System.out.println("OnMessageReceived in ChatComp");
-            Platform.runLater(() -> addMessage(m));
+            Platform.runLater(() -> handleMessage(m));
         });
 
 
@@ -54,10 +57,8 @@ public class ChatComp extends StackPane{
         
         
 
-        this.chatNav.setOnAudioCall(this::toggleAudioCall);
-        this.chatNav.setOnVideoCall(this::toggleVideoCall);
-        this.chatNav.setInAudioCallSup(this::isInAudioCall);
-        this.chatNav.setInVideoCallSup(this::isInVideoCall);
+        this.chatNav.setOnCall(this::toggleAudioCall);
+        this.chatNav.setInCallSup(this::isInCall);
         ChatBox chatBox = new ChatBox();
         chatBox.setKeyConsume(this::outtyping);
         chatBox.setOnSend((message) -> {
@@ -82,7 +83,20 @@ public class ChatComp extends StackPane{
 
         HBox.setHgrow(this, javafx.scene.layout.Priority.ALWAYS);
     }
+    
+    public void handleMessage(Message message) {
+            if ((message.type & (MessageType.TYPING.getValue() | MessageType.MESSAGE.getValue())) > 0) {
+                addMessage(message);
+                return;
+            }
 
+            if ((message.type & MessageType.AUDIO.getValue()) > 0) {
+                CallConfig config = CallConfig.fromBytes(message.messageData);
+                if (message.sender.equals(user.getName()) || config.HOSTNAME.equals(user.getName())) { return; }
+                chatNav.addAvailableCall(config);
+                return;
+            }
+    }
     public void addMessage(Message message) {
         if ((message.type & MessageType.TYPING.getValue()) > 0) {
             //handle typing
@@ -112,65 +126,94 @@ public class ChatComp extends StackPane{
         sendMessage(msg);
     }
 
+    private String ceasarCipher(String input, int shift) {
+        StringBuilder result = new StringBuilder();
+        for (char c : input.toCharArray()) {
+            if (Character.isUpperCase(c)) {
+                char shifted = (char) (((c - 'A' + shift) % 26) + 'A');
+                result.append(shifted);
+            } else if (Character.isLowerCase(c)) {
+                char shifted = (char) (((c - 'a' + shift) % 26) + 'a');
+                result.append(shifted);
+            } else {
+                result.append(c);
+            }
+        }
+        return result.toString();
+    }
+
+    private String multiplicativeCipher(String input, int key) {
+        StringBuilder result = new StringBuilder();
+        for (char c : input.toCharArray()) {
+            if (Character.isUpperCase(c)) {
+                char shifted = (char) (((c - 'A') * key) % 26 + 'A');
+                result.append(shifted);
+            } else if (Character.isLowerCase(c)) {
+                char shifted = (char) (((c - 'a') * key) % 26 + 'a');
+                result.append(shifted);
+            } else {
+                result.append(c);
+            }
+        }
+        return result.toString();
+    }
+
     //as bytes or as Message object?
     private void sendMessage(Message message) {
         if (user != null) {
             System.out.println("Sending message");
             user.send(message);
+            //Just a test
+            // message.messageData = ceasarCipher(new String(message.messageData), 3).getBytes();
+            // user.send(message);
+            // message.messageData = multiplicativeCipher(new String(message.messageData), 5).getBytes();
+            // user.send(message);
         }
     }
 
-    private void toggleAudioCall() {
-        if (this.audioCallComp == null) {
-            sendMessage(new Message(user.getName(), "AUDIO", MessageType.AUDIO.getValue()));
-            this.audioCallComp = new AudioCallComp();
-            this.audioCallComp.setOnEnd(() -> {
-                this.getChildren().remove(this.audioCallComp);
-                this.audioCallComp = null;
-            });
-            this.videoCallComp.setOnExit(() -> {
-                this.getChildren().remove(this.audioCallComp);
-            });
-            this.getChildren().add(this.audioCallComp);
-        }
-        else {
-            if (this.getChildren().contains(this.audioCallComp)) {
-                this.getChildren().remove(this.audioCallComp);
+
+    //start with an audio call, video is optional
+    private void toggleAudioCall(CallConfig config) {
+        if (this.callComp == null) {
+            //Came from own machine
+            if (config == null) {
+                AudioCallServer server = new AudioCallServer();
+                this.callComp = new CallComp(server);
+                byte[] serverConfig = CallConfig.toBytes(server.getAddress(), server.getPort(), user.getName());
+                if (serverConfig.length == 0) {
+                    System.out.println("Failed to get server config, cannot start audio call");
+                }
+                else {
+                    sendMessage(new Message(user.getName(), serverConfig, MessageType.AUDIO.getValue()));
+                }
             }
             else {
-                this.getChildren().add(this.audioCallComp);
+                AudioCallClient client = new AudioCallClient(config.HOST, config.PORT);
+                this.callComp = new CallComp(client);
             }
-        }
-    }
 
-    private void toggleVideoCall() {
-        if (this.videoCallComp == null) {
-            sendMessage(new Message(user.getName(), "VIDEO", MessageType.VIDEO.getValue()));
-            this.videoCallComp = new VideoCallComp();
-            this.videoCallComp.setOnEnd(() -> {
-                this.getChildren().remove(this.videoCallComp);
-                this.videoCallComp = null;
+            this.callComp.setOnEnd(() -> {
+                this.getChildren().remove(this.callComp);
+                this.callComp.endCall();
+                this.callComp = null;
             });
-            this.videoCallComp.setOnExit(() -> {
-                this.getChildren().remove(this.videoCallComp);
+            this.callComp.setOnExit(() -> {
+                this.getChildren().remove(this.callComp);
             });
-            this.getChildren().add(this.videoCallComp);
-        } 
+            this.getChildren().add(this.callComp);
+        }
         else {
-            if (this.getChildren().contains(this.videoCallComp)) {
-                this.getChildren().remove(this.videoCallComp);
+            if (this.getChildren().contains(this.callComp)) {
+                this.getChildren().remove(this.callComp);
             }
             else {
-                this.getChildren().add(this.videoCallComp);
+                this.getChildren().add(this.callComp);
             }
         }
     }
 
-    public boolean isInAudioCall() {
-        return this.audioCallComp != null;
-    }
-    public boolean isInVideoCall() {
-        return this.videoCallComp != null;
+    public boolean isInCall() {
+        return this.callComp != null;
     }
 }
 

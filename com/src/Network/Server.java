@@ -35,7 +35,7 @@ public class Server implements User, AutoCloseable {
 
     public ServerSocket socket;
     public String HOSTNAME = "localhost";
-    private InetAddress address;
+    private InetAddress ADDRESS;
     private ExecutorService pool = Executors.newFixedThreadPool(50);
     protected List<Socket> clients = new ArrayList<Socket>(0);
     protected Deque<Message> messages = new java.util.LinkedList<Message>();
@@ -85,6 +85,18 @@ public class Server implements User, AutoCloseable {
                     Message m = Message.fromBytes(buffer.toByteArray());
                     messages.add(m);
                     //periodically cache messages??
+                    broadcast(m);
+                }
+
+                else if ((type & MessageType.AUDIO.getValue()) > 0) {
+                    DataOutputStream dos = new DataOutputStream(buffer);
+                    dos.writeInt(type);
+                    dos.writeInt(slength);
+                    dos.writeInt(length);
+                    dos.write(senderData);
+                    dos.write(response);
+                    Message m = Message.fromBytes(buffer.toByteArray());
+                    //don't add audio messages to the message history, but still broadcast them
                     broadcast(m);
                 }
 
@@ -141,17 +153,17 @@ public class Server implements User, AutoCloseable {
     public Server() {
         
         try {
-            this.address = getAddress();
-            this.socket = new ServerSocket(50000, 50, this.address);
-            this.HOSTNAME = address.getHostName();
-            System.out.println("Server HOSTNAME: "  + HOSTNAME + ", IP: " + address.getHostAddress());
+            this.ADDRESS = getAddress(); // Use localhost for testing
+            this.socket = new ServerSocket(50000, 50, this.ADDRESS);
+            this.HOSTNAME = ADDRESS.getHostName();
+            System.out.println("Server HOSTNAME: "  + HOSTNAME + ", IP: " + ADDRESS.getHostAddress());
             
         }
         catch (IOException e) {
             System.out.println("Failed to initialize server socket on port 50000");
             try {
-                this.socket = new ServerSocket(0, 50, this.address);
-                this.HOSTNAME = address.getHostName();
+                this.socket = new ServerSocket(0, 50, this.ADDRESS);
+                this.HOSTNAME = ADDRESS.getHostName();
             }
             catch (IOException ex) {
                 System.out.println("Failed to initialize server socket on random port");
@@ -317,6 +329,7 @@ public class Server implements User, AutoCloseable {
         catch (SocketException s) {
             System.out.println("Failed to get network interfaces");
         }
+        System.out.println("Failed to bind a network interface");
         return null;
     }
 

@@ -3,16 +3,25 @@ package Components;
 
 
 
+import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.List;
+import java.util.function.Consumer;
 import java.util.function.Supplier;
 
 import Assets.AudioCallIcon;
 import Assets.DisconnectIcon;
 import Assets.VideoCallIcon;
+import Components.Helper.CallConfig;
+import Components.Helper.VideoCallConfig;
 import Network.ServerInfo;
 import javafx.beans.property.SimpleStringProperty;
 import javafx.geometry.Pos;
+import javafx.geometry.Side;
 import javafx.scene.control.Button;
+import javafx.scene.control.ContextMenu;
 import javafx.scene.control.Label;
+import javafx.scene.control.MenuItem;
 import javafx.scene.image.Image;
 import javafx.scene.image.ImageView;
 import javafx.scene.layout.HBox;
@@ -24,10 +33,12 @@ public class ChatNav extends HBox{
     ServerInfo info;
     private Button audioCallBtn;
     private Button videoCallBtn;
-    private Runnable onAudioCall;
-    private Runnable onVideoCall;
-    private Supplier<Boolean> isAudioCallActiveSupplier;
-    private Supplier<Boolean> isVideoCallActiveSupplier;
+
+    private Consumer<CallConfig> onCallSignal;
+    private Runnable onDisconnectSignal;
+    private Supplier<Boolean> isCallActiveSupplier;
+
+    private HashSet<CallConfig> availableCalls = new HashSet<>();
 
     public ChatNav(ServerInfo info) {
         this.info = info;
@@ -71,8 +82,8 @@ public class ChatNav extends HBox{
         audioCallBtn.setOnMouseEntered(e -> audioCallBtn.getStyleClass().add("audio-call-btn-hover"));
         audioCallBtn.setOnMouseExited(e -> audioCallBtn.getStyleClass().remove("audio-call-btn-hover"));
         audioCallBtn.setOnMouseClicked(e -> {
-            updateAudioCallBtn();
-            if (onAudioCall != null) onAudioCall.run();
+            updateCallBtns();
+            showCallDropdown(audioCallBtn);
         });
         //audioCallBtn.setAlignment(Pos.CENTER);
         
@@ -88,8 +99,8 @@ public class ChatNav extends HBox{
         videoCallBtn.setOnMouseEntered(e -> videoCallBtn.getStyleClass().add("video-call-btn-hover"));
         videoCallBtn.setOnMouseExited(e -> videoCallBtn.getStyleClass().remove("video-call-btn-hover"));
         videoCallBtn.setOnMouseClicked(e -> {
-            updateVideoCallBtn();
-            if (onVideoCall != null) onVideoCall.run();
+            updateCallBtns();
+            showCallDropdown(videoCallBtn);
         });
         //videoCallBtn.setAlignment(Pos.CENTER);
         
@@ -110,50 +121,69 @@ public class ChatNav extends HBox{
         this.getChildren().addAll(titleLabel, spacer, audioCallBtn, videoCallBtn, disconnectBtn);
     }
     
-    private void updateAudioCallBtn() {
-        if (isAudioCallActiveSupplier != null && isAudioCallActiveSupplier.get()) {
+    private void updateCallBtns() {
+        if (isCallActiveSupplier != null && isCallActiveSupplier.get()) {
             audioCallBtn.getStyleClass().add("audio-call-btn-active");
-        } else {
-            audioCallBtn.getStyleClass().remove("audio-call-btn-active");
-        }
-    }
-    
-    private void updateVideoCallBtn() {
-        if (isVideoCallActiveSupplier != null && isVideoCallActiveSupplier.get()) {
             videoCallBtn.getStyleClass().add("video-call-btn-active");
         } else {
+            audioCallBtn.getStyleClass().remove("audio-call-btn-active");
             videoCallBtn.getStyleClass().remove("video-call-btn-active");
         }
     }
 
-    public void setInAudioCallSup(Supplier<Boolean> isAudioCallActiveSupplier) {
-        this.isAudioCallActiveSupplier = isAudioCallActiveSupplier;
+    public void setInCallSup(Supplier<Boolean> isCallActiveSupplier) {
+        this.isCallActiveSupplier = isCallActiveSupplier;
     }
 
-    public void setInVideoCallSup(Supplier<Boolean> isVideoCallActiveSupplier) {
-        this.isVideoCallActiveSupplier = isVideoCallActiveSupplier;
+    public void setOnCall(Consumer<CallConfig> onCall) {
+        this.onCallSignal = onCall;
     }
     
-    public void setOnAudioCall(Runnable onAudioCall) {
-        this.onAudioCall = onAudioCall;
+    
+    public void setAvailableCalls(HashSet<CallConfig> calls) {
+        this.availableCalls.clear();
+        this.availableCalls.addAll(calls);
+    }
+
+    public void addAvailableCall(CallConfig config) {
+        if (config == null || config.HOST == null || config.PORT == -1) {
+            System.out.println("Invalid audio call config, cannot add to available calls");
+            return;
+        }
+        this.availableCalls.add(config);
     }
     
-    public void setOnVideoCall(Runnable onVideoCall) {
-        this.onVideoCall = onVideoCall;
+    
+    private void showCallDropdown(Button anchor) {
+        
+        ContextMenu contextMenu = new ContextMenu();
+        MenuItem newCallItem = new MenuItem("Start New Call");
+        newCallItem.setOnAction(e -> {
+            if (onCallSignal != null) {
+                onCallSignal.accept(null);
+            }
+        });
+        contextMenu.getItems().add(newCallItem);
+        
+        for (CallConfig callConfig : availableCalls) {
+            MenuItem menuItem = new MenuItem(callConfig.toString());
+            menuItem.setOnAction(e -> {
+                if (onCallSignal != null) {
+                    onCallSignal.accept(callConfig);
+                }
+            });
+            contextMenu.getItems().add(menuItem);
+        }
+        
+        // Show the context menu at the button's location
+        contextMenu.show(anchor, Side.BOTTOM, 0, 0);
     }
     
-    private void onAudioCall() {
-        System.out.println("Audio call initiated");
-        // TODO: Handle audio call initiation
-    }
-    
-    private void onVideoCall() {
-        System.out.println("Video call initiated");
-        // TODO: Handle video call initiation
-    }
 
     private void onDisconnect() {
         System.out.println("Disconnecting from server");
+        //Cleanup
+        onDisconnectSignal.run();
     }
 
 }

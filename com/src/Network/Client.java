@@ -172,7 +172,7 @@ public class Client implements User {
         try {
             return receiveClient().toByteArray();
         } catch (IOException e) {
-            System.out.println("Error receiving message: " + e.getMessage());
+            //System.out.println("Error receiving message: " + e.getMessage());
             return new byte[0];
         }
     }
