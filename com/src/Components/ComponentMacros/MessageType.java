@@ -11,7 +11,10 @@ public enum MessageType {
     TYPING(1 << 5),
     AUDIO(1 << 6),
     VIDEO(1 << 7),
-    OTHER(1 << 8);
+    OTHER(1 << 8),
+    LOGIN(1 << 9),
+    AUTH_OK(1 << 10),
+    AUTH_FAIL(1 << 11);
 
     private final int value;
     
@@ -41,6 +44,9 @@ public enum MessageType {
             case AUDIO -> "AUDIO";
             case VIDEO -> "VIDEO";
             case OTHER -> "OTHER";
+            case LOGIN -> "LOGIN";
+            case AUTH_OK -> "AUTH_OK";
+            case AUTH_FAIL -> "AUTH_FAIL";
         };
     }
 }

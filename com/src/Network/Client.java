@@ -22,7 +22,11 @@ import Components.ComponentMacros.MessageType;
 
 import Components.Message;
 
+import javax.crypto.SecretKey;
+
 public class Client implements User {
+    private static final String SESSION_SALT = "WheelbarrowSessionSalt2024";
+
     private volatile boolean running = true;
     private Socket SERVER;
     public String SERVER_HOSTNAME = ""; 
@@ -32,8 +36,10 @@ public class Client implements User {
     private DataInputStream reader;
     private DataOutputStream writer;
     private Consumer<Message> onMessageReceived;
+    private SecretKey sessionKey;
+    private String loginUsername;
+    private String loginPassword;
     
-
 
     public Client(InetAddress address) {
         this.SERVER_HOSTNAME = address.getHostName();
@@ -97,6 +103,45 @@ public class Client implements User {
         }
     }
 
+    /**
+     * Creates a client with AES-GCM encryption and an optional login.
+     * The {@code password} derives the shared session key (must match the
+     * server's password). If {@code username} and {@code password} are
+     * non-null the client will send a LOGIN message after the WELCOME
+     * handshake.
+     */
+    public Client(InetAddress address, int port, Consumer<Message> listener,
+                  String username, String password) {
+        this.SERVER_HOSTNAME = address.getHostName();
+        getClientAddress();
+        HOSTNAME = ADDRESS != null ? ADDRESS.getHostName() : "Unknown Client";
+        if (SERVER_HOSTNAME.equals(HOSTNAME)) {
+            HOSTNAME += "_1";
+        }
+        this.onMessageReceived = listener;
+        this.loginUsername = username;
+        this.loginPassword = password;
+        if (password != null && !password.isEmpty()) {
+            try {
+                this.sessionKey = Security.getKeyFromPassword(password, SESSION_SALT);
+                System.out.println("Client: session key derived from password");
+            } catch (Exception e) {
+                System.out.println("Client: failed to derive session key - " + e.getMessage());
+            }
+        }
+        try {
+            SERVER = new Socket(address, port);
+            reader = new DataInputStream(SERVER.getInputStream());
+            writer = new DataOutputStream(SERVER.getOutputStream());
+            info = new ServerInfo("loading...", SERVER.getInetAddress(), SERVER.getPort(), null);
+            Thread receiveThread = new Thread(this::receiveLoop);
+            receiveThread.setDaemon(true);  // Exit with app
+            receiveThread.start();
+        } catch (IOException e) {
+            System.out.println("Error connecting to server: " + e.getMessage());
+        }
+    }
+
 
     private void receiveLoop() {
         while(running) {
@@ -113,12 +158,16 @@ public class Client implements User {
                 }
                 if ((msg.type & MessageType.MESSAGE.getValue()) > 0) {
                     //could be an image here
-                    System.out.println("Received message: " + new String(msg.messageData));
-                    onMessageReceived.accept(msg);
+                    byte[] plaintext = decryptPayload(msg.messageData);
+                    if (plaintext == null) continue;
+                    System.out.println("Received message: " + new String(plaintext));
+                    onMessageReceived.accept(new Message(msg.sender, plaintext, msg.type));
                 }
                 else if ((msg.type & MessageType.TYPING.getValue()) > 0) {
-                    System.out.println("Received typing message: " + new String(msg.messageData));
-                    onMessageReceived.accept(msg);
+                    byte[] plaintext = decryptPayload(msg.messageData);
+                    if (plaintext == null) continue;
+                    System.out.println("Received typing message: " + new String(plaintext));
+                    onMessageReceived.accept(new Message(msg.sender, plaintext, msg.type));
                 }
                 else if ((msg.type & MessageType.WELCOME.getValue()) > 0) {
                     System.out.println("Received welcome message: " + new String(msg.messageData));
@@ -127,18 +176,70 @@ public class Client implements User {
                     //send a request for server info
                     send(new Message(HOSTNAME, "Request", MessageType.SERVER_INFO.getValue()));
                     requestInfo();
+                    //send login credentials if configured
+                    if (loginUsername != null && loginPassword != null) {
+                        sendLogin();
+                    }
                 }
                 else if ((msg.type & MessageType.SERVER_INFO.getValue()) > 0) {
                     // Probably an area where something specific happens because the message is directed towards this client
                     System.out.println("Received server info: " + new String(msg.messageData));
                     info = ServerInfo.parseMessage(msg);
                 }
+                else if ((msg.type & MessageType.AUTH_OK.getValue()) > 0) {
+                    System.out.println("Login accepted by server");
+                }
+                else if ((msg.type & MessageType.AUTH_FAIL.getValue()) > 0) {
+                    System.out.println("Login rejected by server");
+                }
                 else if ((msg.type & MessageType.BROADCAST.getValue()) > 0) {
                     //handle broadcast message, this is a message that should be sent to all users but not necessarily displayed in the chat
-                    System.out.println("Received broadcast message: " + new String(msg.messageData));
-                    onMessageReceived.accept(msg);
+                    byte[] plaintext = decryptPayload(msg.messageData);
+                    if (plaintext == null) continue;
+                    System.out.println("Received broadcast message: " + new String(plaintext));
+                    onMessageReceived.accept(new Message(msg.sender, plaintext, msg.type));
                 }
             }
+        }
+    }
+
+    /** Sends the stored username and password to the server as a LOGIN message. */
+    private void sendLogin() {
+        String payload = loginUsername + ":" + loginPassword;
+        send(new Message(HOSTNAME, payload, MessageType.LOGIN.getValue()));
+    }
+
+    /**
+     * Encrypts {@code payload} when a session key is configured; returns the
+     * payload unchanged otherwise. Returns {@code null} on encryption failure
+     * so the caller can abort the send rather than transmit plaintext.
+     */
+    private byte[] encryptPayload(byte[] payload) {
+        if (sessionKey == null || payload == null || payload.length == 0) {
+            return payload;
+        }
+        try {
+            return Security.encryptBytes(payload, sessionKey);
+        } catch (Exception e) {
+            System.out.println("Client: encryption failed – message will not be sent: " + e.getMessage());
+            return null;
+        }
+    }
+
+    /**
+     * Decrypts {@code data} when a session key is configured; returns {@code data}
+     * unchanged otherwise. Returns {@code null} on decryption failure so the
+     * caller can drop the message rather than process potentially tampered data.
+     */
+    private byte[] decryptPayload(byte[] data) {
+        if (sessionKey == null || data == null || data.length == 0) {
+            return data;
+        }
+        try {
+            return Security.decryptBytes(data, sessionKey);
+        } catch (Exception e) {
+            System.out.println("Client: decryption failed – message dropped: " + e.getMessage());
+            return null;
         }
     }
 
@@ -154,7 +255,12 @@ public class Client implements User {
             return;
         }
 
-        byte[] data = message.messageData;
+        // Encrypt the payload; abort if encryption fails
+        byte[] data = encryptPayload(message.messageData);
+        if (data == null) {
+            System.out.println("Client: message not sent due to encryption failure");
+            return;
+        }
         try {
             writer.writeInt(message.type); //type of message
             writer.writeInt(message.sender.getBytes().length); //sender length
@@ -253,4 +359,3 @@ public class Client implements User {
     }
 
 }
-
