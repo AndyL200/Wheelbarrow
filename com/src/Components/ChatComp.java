@@ -6,9 +6,10 @@ import java.util.function.Supplier;
 
 import Components.ComponentMacros.MessageType;
 import Components.Helper.CallConfig;
-import Components.Helper.VideoCallConfig;
 import Network.AudioCallClient;
 import Network.AudioCallServer;
+import Network.CallClient;
+import Network.CallServer;
 import Network.User;
 import javafx.application.Platform;
 import javafx.geometry.Pos;
@@ -90,7 +91,7 @@ public class ChatComp extends StackPane{
                 return;
             }
 
-            if ((message.type & MessageType.AUDIO.getValue()) > 0) {
+            if ((message.type & MessageType.AUDIO_HOST.getValue()) > 0) {
                 CallConfig config = CallConfig.fromBytes(message.messageData);
                 if (message.sender.equals(user.getName()) || config.HOSTNAME.equals(user.getName())) { return; }
                 chatNav.addAvailableCall(config);
@@ -177,25 +178,28 @@ public class ChatComp extends StackPane{
         if (this.callComp == null) {
             //Came from own machine
             if (config == null) {
-                AudioCallServer server = new AudioCallServer();
+                CallServer server = new CallServer();
                 this.callComp = new CallComp(server);
+                this.callComp.getCallObj().openAudioCall();
                 byte[] serverConfig = CallConfig.toBytes(server.getAddress(), server.getPort(), user.getName());
                 if (serverConfig.length == 0) {
                     System.out.println("Failed to get server config, cannot start audio call");
                 }
                 else {
-                    sendMessage(new Message(user.getName(), serverConfig, MessageType.AUDIO.getValue()));
+                    sendMessage(new Message(user.getName(), serverConfig, MessageType.AUDIO_HOST.getValue()));
                 }
             }
             else {
-                AudioCallClient client = new AudioCallClient(config.HOST, config.PORT);
+                CallClient client = new CallClient(config.HOST, config.PORT);
                 this.callComp = new CallComp(client);
+                this.callComp.getCallObj().openAudioCall();
             }
 
             this.callComp.setOnEnd(() -> {
                 this.getChildren().remove(this.callComp);
                 this.callComp.endCall();
                 this.callComp = null;
+                this.chatNav.updateCallBtns();
             });
             this.callComp.setOnExit(() -> {
                 this.getChildren().remove(this.callComp);
@@ -210,6 +214,7 @@ public class ChatComp extends StackPane{
                 this.getChildren().add(this.callComp);
             }
         }
+        this.chatNav.updateCallBtns();
     }
 
     public boolean isInCall() {

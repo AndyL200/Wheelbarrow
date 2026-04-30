@@ -4,6 +4,7 @@ import javax.sound.sampled.Mixer;
 
 import Network.AudioCall;
 import Network.Call;
+import Network.CallObj;
 import Network.VideoCall;
 import javafx.geometry.Pos;
 import javafx.scene.control.Button;
@@ -24,17 +25,15 @@ public class CallComp extends StackPane {
     private Button endCallBtn;
     private Button exitBtn;
     
-    private AudioCall audioObj;
-    private VideoCall videoObj;
-
-
+    private CallObj callObj;
 
     //signals
     private Runnable onExit;
     private Runnable onMute;
     private Runnable onEnd;
 
-    public CallComp(Call call) {
+    public CallComp(CallObj call) {
+        this.callObj = call;
         this.getStyleClass().add("audio-call-comp");
         this.setMaxHeight(Double.MAX_VALUE);
         this.setMaxWidth(Double.MAX_VALUE);
@@ -103,7 +102,12 @@ public class CallComp extends StackPane {
         });
 
         micPicker.setOnAction(e -> {
-            this.audioObj.setMic(micPicker.getValue());
+            if (this.callObj != null && this.callObj.getAudio() != null) {
+                this.callObj.getAudio().setMic(micPicker.getValue());
+            }
+            else {
+                micPicker.setValue(null);
+            }
         });
 
         ComboBox<Mixer.Info> speakerPicker = new ComboBox<>();
@@ -116,7 +120,12 @@ public class CallComp extends StackPane {
             }
         });
         speakerPicker.setOnAction(e -> {
-            this.audioObj.setSpeaker(speakerPicker.getValue());
+            if (this.callObj != null && this.callObj.getAudio() != null) {
+                this.callObj.getAudio().setSpeaker(speakerPicker.getValue());
+            }
+            else {
+                speakerPicker.setValue(null);
+            }
         });
         
         this.controls.getChildren().addAll(muteBtn, endCallBtn, exitBtn, micPicker, speakerPicker);
@@ -124,7 +133,7 @@ public class CallComp extends StackPane {
         this.container.getChildren().addAll(this.callUsers, this.controls);
         this.getChildren().add(this.container);
 
-        this.audioObj.start();
+        this.callObj.start();
     }
     
     public GridPane getCallUsersGrid() {
@@ -148,39 +157,22 @@ public class CallComp extends StackPane {
     }
 
     public void endCall() {
-        this.audioObj.stop();
-        System.out.println("Audio call scheduled for termination.");
+        this.callObj.stop();
+        System.out.println("Call scheduled for termination.");
     }
 
-    public AudioCall getAudioObj() {
-        return this.audioObj;
+    public CallObj getCallObj() {
+        return this.callObj;
     }
 
 
-    public void setAudioObj(AudioCall audioObj) {
-        this.audioObj = audioObj;
+    public void setCallObj(CallObj callObj) {
+        this.callObj = callObj;
         this.endCallBtn.setOnAction(e -> {
             System.out.println("Call ended");
             if (onEnd != null) onEnd.run();
-            if (this.audioObj != null) {
-                this.audioObj.stop();
-            }
-            if (this.videoObj != null) {
-                this.videoObj.stop();
-            }
-        });
-    }
-
-    public void setVideoObj(VideoCall videoObj) {
-        this.videoObj = videoObj;
-        this.endCallBtn.setOnAction(e -> {
-            System.out.println("Call ended");
-            if (onEnd != null) onEnd.run();
-            if (this.audioObj != null) {
-                this.audioObj.stop();
-            }
-            if (this.videoObj != null) {
-                this.videoObj.stop();
+            if (this.callObj != null) {
+                this.callObj.stop();
             }
         });
     }

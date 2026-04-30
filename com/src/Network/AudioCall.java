@@ -4,6 +4,7 @@ import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.function.Consumer;
 
 import javax.sound.sampled.AudioFormat;
 import javax.sound.sampled.AudioInputStream;
@@ -111,5 +112,8 @@ public interface AudioCall extends Call {
     public static final int NETWORK_BUFFER_SIZE = getBufferSize(COMMON_NETWORK_FORMAT, 20); // 20ms of audio per packet
     public void setMic(Mixer.Info mixerInfo);
     public void setSpeaker(Mixer.Info mixerInfo);
+
+    public void offer(byte[] data);
+    public void setOnAudioSupply(Consumer<byte[]> onAudioSupply);
     
 }

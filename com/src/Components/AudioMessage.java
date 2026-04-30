@@ -1,5 +1,7 @@
 package Components;
 
+
+///Depreciated, audio uses DatagramPackets now
 public class AudioMessage {
     String sender;
     byte[] audioData;

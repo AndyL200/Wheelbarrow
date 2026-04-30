@@ -17,6 +17,7 @@ import java.util.Map;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Consumer;
 
 import javax.sound.sampled.AudioFormat;
 import javax.sound.sampled.AudioInputStream;
@@ -25,6 +26,8 @@ import javax.sound.sampled.LineUnavailableException;
 import javax.sound.sampled.Mixer;
 import javax.sound.sampled.SourceDataLine;
 import javax.sound.sampled.TargetDataLine;
+
+import javafx.scene.chart.PieChart.Data;
 
 public class AudioCallServer implements AudioCall, AutoCloseable {
     AudioFormat micFmt;
@@ -38,58 +41,18 @@ public class AudioCallServer implements AudioCall, AutoCloseable {
 
     TargetDataLine mic;
     SourceDataLine speaker;
-    //UDP
-    DatagramSocket docket;
-    HashMap<SocketAddress, Long> clients = new HashMap<>(); // Track client activity timestamp
-    private InetAddress ADDRESS;
-    private int PORT;
+    
     private volatile boolean running = false;
-    private static final long INACTIVITY_TIMEOUT = 30000; // 30 seconds in milliseconds
 
-    // Threads
-    Thread receiveThread;
-    Thread broadcastThread;
+    //Consumer
     Thread consumeThread;
+    Thread supplyThread;
+
+    Consumer<byte[]> onAudioSupply;
 
     BlockingQueue<byte[]> jitterQueue = new LinkedBlockingQueue<>(20); // ~1 second at 50ms packets
 
     public AudioCallServer() {
-       
-        //what if already hosting server? could just use the same socket
-        ADDRESS = getLocalNetworkAddress();
-        this.PORT = 50000; // Default port, will be overridden if unavailable
-        try {
-            docket = new DatagramSocket(PORT, ADDRESS);
-            docket.setSoTimeout(2000); // 2 second timeout instead of 50
-        }
-        catch (SocketException s) {
-            System.out.println("Could not create socket on port 50000 with address " + ADDRESS + ": " + s.getMessage());
-            try {
-                // Retry with wildcard address (null) to bind to all interfaces
-                docket = new DatagramSocket(0, ADDRESS);
-                PORT = docket.getLocalPort();
-                docket.setSoTimeout(2000); // 2 second timeout instead of 50
-            } catch (SocketException e) {
-                System.out.println("Could not create socket with address " + ADDRESS + ": " + e.getMessage());
-                try {
-                    // Final attempt with wildcard address and any available port
-                    docket = new DatagramSocket(0);
-                    PORT = docket.getLocalPort();
-                    docket.setSoTimeout(2000); // 2 second timeout instead of 50
-                    ADDRESS = docket.getLocalAddress(); // Update ADDRESS to the one assigned by the socket
-                } catch (SocketException ex) {
-                    System.out.println("Failed to create socket: " + ex.getMessage());
-                    throw new RuntimeException("Unable to start audio call server");
-                }
-                return;
-            }
-        }
-        
-        // Ensure ADDRESS is set from the socket if it's null
-        if (ADDRESS == null) {
-            ADDRESS = docket.getLocalAddress();
-        }
-        
         micFmt = AudioCall.getBestFormat(null); // Use default mixer
         speakerFmt = AudioCall.getBestFormat(null); // Use default mixer
         micPipe = new PipedOutputStream();
@@ -127,17 +90,9 @@ public class AudioCallServer implements AudioCall, AutoCloseable {
         } catch (IOException e) {
             System.out.println("Error initializing audio streams: " + e.getMessage());
         }
-
-        running = true;
         
-        // Start receive/broadcast handler thread
-        this.receiveThread = new Thread(this::handleReceive);
-        this.receiveThread.setDaemon(true);
-        this.receiveThread.start();
+        running = true;
 
-        this.broadcastThread = new Thread(this::handleBroadcast);
-        this.broadcastThread.setDaemon(true);
-        this.broadcastThread.start();
 
         this.consumeThread = new Thread(this::consumeAudio);
         this.consumeThread.setDaemon(true);
@@ -146,6 +101,21 @@ public class AudioCallServer implements AudioCall, AutoCloseable {
     @Override
     public void stop() {
         running = false;
+        this.consumeThread.interrupt();
+        try {
+            this.consumeThread.join();
+        } catch (InterruptedException e) {
+            this.consumeThread.interrupt();
+        }
+        if (supplyThread != null) {
+            this.supplyThread.interrupt();
+            try {
+                this.supplyThread.join();
+            } catch (InterruptedException e) {
+                this.supplyThread.interrupt();
+            }
+        }
+
         try {
             synchronized (mic) {
                 mic.stop();
@@ -155,119 +125,52 @@ public class AudioCallServer implements AudioCall, AutoCloseable {
                 speaker.stop();
                 speaker.close();
             }
-            docket.close();
             micPipe.close();
             spkrPipe.close();
         } catch (Exception e) {
             System.out.println("Error stopping: " + e.getMessage());
         }
-        try {
-            this.receiveThread.join();
-        } catch (InterruptedException e) {
-            this.receiveThread.interrupt();
-        }
-        try {
-            this.broadcastThread.join();
-        } catch (InterruptedException e) {
-            this.broadcastThread.interrupt();
-        }
-        try {
-            this.consumeThread.join();
-        } catch (InterruptedException e) {
-            this.consumeThread.interrupt();
-        }
     }
 
+    @Override
     public void close() {
         stop();
     }
     
-    private void handleReceive() {
-        while (running) {
-            receive();
-        }
-    }
-
-
-
-
-    private void handleBroadcast() {
-        while (running) {
-            broadcast();
-        }
-    }
-
-    private void receive() {
-        byte[] data = new byte[AudioCall.NETWORK_BUFFER_SIZE];
-        DatagramPacket request = new DatagramPacket(data, data.length);
-        try {
-            docket.receive(request);
-        } catch (IOException e) {
-            // Timeout is normal
-            return;
-        }
-
-        // Handle new clients
-        SocketAddress clientAddress = request.getSocketAddress();
-        synchronized (clients) {
-            long currentTime = System.currentTimeMillis();
-            if (!clients.containsKey(clientAddress)) {
-                System.out.println("New client connected: " + clientAddress);
-                clients.put(clientAddress, currentTime);
-            } else {
-                clients.put(clientAddress, currentTime);
-            }
-        }
-
-        byte[] speakerData = convertSpkrStream(request.getData(), AudioCall.COMMON_NETWORK_FORMAT);
+    @Override
+    public void offer(byte[] data) {
+        byte[] speakerData = convertSpkrStream(data, AudioCall.COMMON_NETWORK_FORMAT);
         jitterQueue.offer(speakerData); // drops if full — intentional
     }
 
-    private void broadcast() {
-        // Read raw mic data - blocks until available
-        byte[] data;
-        int bytesRead = 0;
-        synchronized (mic) {
-            if (mic == null || !mic.isOpen()) {
-                return; //Microphone not ready
-            }
-            int MIC_BUFFER_SIZE = AudioCall.getBufferSize(micFmt, 50);
-            data = new byte[MIC_BUFFER_SIZE];
-            bytesRead = mic.read(data, 0, MIC_BUFFER_SIZE); // blocks until full
-        }
-
-        if (bytesRead <= 0 || clients.isEmpty()) {
-            return;
-        }
-
-        // Convert to network format
-        byte[] networkData = convertMicStream(Arrays.copyOf(data, bytesRead), AudioCall.COMMON_NETWORK_FORMAT);
-
-        if (networkData.length > 0) {
-            synchronized (clients) {
-                Iterator<Map.Entry<SocketAddress, Long>> iterator = clients.entrySet().iterator();
-                
-                while (iterator.hasNext()) {
-                    Map.Entry<SocketAddress, Long> entry = iterator.next();
-                    long lastActivityTime = entry.getValue();
-                    long currentTime = System.currentTimeMillis();
-
-                    if (currentTime - lastActivityTime > INACTIVITY_TIMEOUT) {
-                        SocketAddress inactiveClient = entry.getKey();
-                        iterator.remove();
-                        System.out.println("Removed inactive client: " + inactiveClient);
-                    }
-                    else {
-                        DatagramPacket packet = new DatagramPacket(networkData, networkData.length, entry.getKey());
-                        try {
-                            docket.send(packet);
-                        } catch (IOException e) {
-                            System.out.println("Error sending packet to " + entry.getKey() + ": " + e.getMessage());
-                        }
-                    }
+    private void audioSupplier() {
+        while (running) {
+            // Read raw mic data - blocks until available
+            byte[] data;
+            int bytesRead = 0;
+            synchronized (mic) {
+                if (mic == null || !mic.isOpen()) {
+                    return; //Microphone not ready
                 }
+                int MIC_BUFFER_SIZE = AudioCall.getBufferSize(micFmt, 50);
+                data = new byte[MIC_BUFFER_SIZE];
+                bytesRead = mic.read(data, 0, MIC_BUFFER_SIZE); // blocks until full
+            }
+
+            if (bytesRead <= 0) {
+                continue;
+            }
+
+            // Convert to network format
+            byte[] networkData = convertMicStream(Arrays.copyOf(data, bytesRead), AudioCall.COMMON_NETWORK_FORMAT);
+            if (onAudioSupply != null) {
+                onAudioSupply.accept(networkData);
             }
         }
+    }
+
+    public void setOnAudioSupply(Consumer<byte[]> onAudioSupply) {
+        this.onAudioSupply = onAudioSupply;
     }
     @Override
     public void setMic(Mixer.Info mixerInfo) {
@@ -299,6 +202,18 @@ public class AudioCallServer implements AudioCall, AutoCloseable {
                 System.out.println("Error setting microphone: " + e.getMessage());
             }
         }
+
+        if (supplyThread.isAlive()) {
+            supplyThread.interrupt();
+            try {
+                supplyThread.join();
+            } catch (InterruptedException e) {
+                supplyThread.interrupt();
+            }
+        }
+        supplyThread = new Thread(this::audioSupplier);
+        supplyThread.setDaemon(true);
+        supplyThread.start();
     }
     @Override
     public void setSpeaker(Mixer.Info mixerInfo) {
@@ -334,9 +249,10 @@ public class AudioCallServer implements AudioCall, AutoCloseable {
     }
 
     private void consumeAudio() {
-        int silenceSize = AudioCall.getBufferSize(speakerFmt, 50);
+        
         while (running) {
             try {
+                int silenceSize = AudioCall.getBufferSize(speakerFmt, 50);
                 byte[] speakerData = jitterQueue.poll(50, TimeUnit.MILLISECONDS);
                 if (speakerData == null) {
                     // Queue ran dry — write silence to prevent underrun
@@ -354,29 +270,7 @@ public class AudioCallServer implements AudioCall, AutoCloseable {
         }
     }
 
-    private InetAddress getLocalNetworkAddress() {
-        try {
-            Enumeration<NetworkInterface> interfaces = NetworkInterface.getNetworkInterfaces();
-            while (interfaces.hasMoreElements()) {
-                NetworkInterface ni = interfaces.nextElement();
-                // Skip loopback and inactive interfaces
-                if (ni.isLoopback() || !ni.isUp()) {
-                    continue;
-                }
-                Enumeration<InetAddress> addresses = ni.getInetAddresses();
-                while (addresses.hasMoreElements()) {
-                    InetAddress addr = addresses.nextElement();
-                    // Return first non-loopback, non-link-local IPv4 address
-                    if (!addr.isLoopbackAddress() && !addr.isLinkLocalAddress()) {
-                        return addr;
-                    }
-                }
-            }
-        } catch (SocketException e) {
-            System.out.println("Error getting network interface: " + e.getMessage());
-        }
-        return null;
-    }
+    
 
      @Override
     public byte[] convertMicStream(byte[] input, AudioFormat tgtFmt) {
@@ -425,13 +319,4 @@ public class AudioCallServer implements AudioCall, AutoCloseable {
             return new byte[tgtFrames * speakerFmt.getFrameSize()];
         }
     }
-
-    public InetAddress getAddress() {
-        return ADDRESS;
-    }
-
-    public int getPort() {
-        return PORT;
-    }
-
 }

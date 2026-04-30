@@ -9,8 +9,8 @@ public enum MessageType {
     BROADCAST(1 << 3),
     WELCOME(1 << 4),
     TYPING(1 << 5),
-    AUDIO(1 << 6),
-    VIDEO(1 << 7),
+    AUDIO_HOST(1 << 6),
+    VIDEO_HOST(1 << 7),
     OTHER(1 << 8);
 
     private final int value;
@@ -38,8 +38,8 @@ public enum MessageType {
             case BROADCAST -> "BROADCAST";
             case WELCOME -> "WELCOME";
             case TYPING -> "TYPING";
-            case AUDIO -> "AUDIO";
-            case VIDEO -> "VIDEO";
+            case AUDIO_HOST -> "AUDIO_HOST";
+            case VIDEO_HOST -> "VIDEO_HOST";
             case OTHER -> "OTHER";
         };
     }

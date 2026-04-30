@@ -88,7 +88,7 @@ public class Server implements User, AutoCloseable {
                     broadcast(m);
                 }
 
-                else if ((type & MessageType.AUDIO.getValue()) > 0) {
+                else if ((type & MessageType.AUDIO_HOST.getValue()) > 0) {
                     DataOutputStream dos = new DataOutputStream(buffer);
                     dos.writeInt(type);
                     dos.writeInt(slength);

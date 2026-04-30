@@ -13,7 +13,6 @@ import Assets.AudioCallIcon;
 import Assets.DisconnectIcon;
 import Assets.VideoCallIcon;
 import Components.Helper.CallConfig;
-import Components.Helper.VideoCallConfig;
 import Network.ServerInfo;
 import javafx.beans.property.SimpleStringProperty;
 import javafx.geometry.Pos;
@@ -82,7 +81,10 @@ public class ChatNav extends HBox{
         audioCallBtn.setOnMouseEntered(e -> audioCallBtn.getStyleClass().add("audio-call-btn-hover"));
         audioCallBtn.setOnMouseExited(e -> audioCallBtn.getStyleClass().remove("audio-call-btn-hover"));
         audioCallBtn.setOnMouseClicked(e -> {
-            updateCallBtns();
+            if (isCallActiveSupplier != null && isCallActiveSupplier.get()) {
+                onCallSignal.accept(null);
+                return;
+            }
             showCallDropdown(audioCallBtn);
         });
         //audioCallBtn.setAlignment(Pos.CENTER);
@@ -99,7 +101,10 @@ public class ChatNav extends HBox{
         videoCallBtn.setOnMouseEntered(e -> videoCallBtn.getStyleClass().add("video-call-btn-hover"));
         videoCallBtn.setOnMouseExited(e -> videoCallBtn.getStyleClass().remove("video-call-btn-hover"));
         videoCallBtn.setOnMouseClicked(e -> {
-            updateCallBtns();
+            if (isCallActiveSupplier != null && isCallActiveSupplier.get()) {
+                onCallSignal.accept(null);
+                return;
+            }
             showCallDropdown(videoCallBtn);
         });
         //videoCallBtn.setAlignment(Pos.CENTER);
@@ -121,7 +126,7 @@ public class ChatNav extends HBox{
         this.getChildren().addAll(titleLabel, spacer, audioCallBtn, videoCallBtn, disconnectBtn);
     }
     
-    private void updateCallBtns() {
+    public void updateCallBtns() {
         if (isCallActiveSupplier != null && isCallActiveSupplier.get()) {
             audioCallBtn.getStyleClass().add("audio-call-btn-active");
             videoCallBtn.getStyleClass().add("video-call-btn-active");

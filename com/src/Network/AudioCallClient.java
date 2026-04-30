@@ -1,23 +1,20 @@
 package Network;
 
-import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.PipedInputStream;
 import java.io.PipedOutputStream;
-import java.net.DatagramPacket;
-import java.net.DatagramSocket;
 import java.net.InetAddress;
 import java.net.SocketException;
 import java.util.Arrays;
-import java.util.List;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Consumer;
+import java.util.function.Consumer;
 
 import javax.sound.sampled.AudioFormat;
 import javax.sound.sampled.AudioInputStream;
 import javax.sound.sampled.AudioSystem;
-import javax.sound.sampled.Line;
 import javax.sound.sampled.LineUnavailableException;
 import javax.sound.sampled.Mixer;
 import javax.sound.sampled.SourceDataLine;
@@ -35,39 +32,21 @@ public class AudioCallClient implements AudioCall, AutoCloseable {
 
     TargetDataLine mic;
     SourceDataLine speaker;
-    //UDP
-    DatagramSocket socket;
-    InetAddress serverAddress;
-    int serverPort;
-    volatile boolean running = false;
+    
+    private volatile boolean running = false;
 
-
-    //Threads
-    Thread sendThread;
-    Thread receiveThread;
+    // Threads
+    Thread supplyThread;
     Thread consumeThread;
+
+    // Callback for audio supply
+    Consumer<byte[]> onAudioSupply;
 
     BlockingQueue<byte[]> jitterQueue = new LinkedBlockingQueue<>(20); // ~1 second at 50ms packets
 
-    public AudioCallClient(String serverHost, int serverPort) {
-        
-        try {
-            this.serverAddress = InetAddress.getByName(serverHost);
-            this.serverPort = serverPort;
-            this.socket = new DatagramSocket(50000);
-            this.socket.setSoTimeout(2000); // 2 second timeout for receive
-        } catch (SocketException s1) {
-            try {
-                System.out.println("Could not create socket: " + s1.getMessage());
-                this.socket = new DatagramSocket(0);
-                this.socket.setSoTimeout(2000);
-            } catch (SocketException s2) {
-                System.out.println("Error initializing client: " + s2.getMessage());
-            }
-        } catch (Exception e) {
-            System.out.println("Error initializing client: " + e.getMessage());
-        }
-        
+    public AudioCallClient() {
+        // Note: serverHost and serverPort are kept for compatibility but not used
+        // Audio routing is handled by CallClient's socket management
         micFmt = AudioCall.getBestFormat(null); // Use default mixer
         speakerFmt = AudioCall.getBestFormat(null); // Use default mixer
         micPipe = new PipedOutputStream();
@@ -79,10 +58,12 @@ public class AudioCallClient implements AudioCall, AutoCloseable {
         } catch (Exception e) {
             System.out.println("Error initializing audio devices: " + e.getMessage());
         }
+        
     }
     @Override
     public void start() {
         try {
+            // Setup mic pipeline
             mic.open(micFmt);
             //experiment with the latency
             //Write micFmt to COMMON_NETWORK_FORMAT
@@ -90,6 +71,7 @@ public class AudioCallClient implements AudioCall, AutoCloseable {
             micStream = AudioSystem.getAudioInputStream(AudioCall.COMMON_NETWORK_FORMAT, micStream);
             mic.start();
 
+            // Setup speaker pipeline
             speaker.open(speakerFmt);
             //Write COMMON_NETWORK_FORMAT to speakerFmt
             spkrStream = new AudioInputStream(new PipedInputStream(spkrPipe), AudioCall.COMMON_NETWORK_FORMAT, AudioSystem.NOT_SPECIFIED);
@@ -108,43 +90,43 @@ public class AudioCallClient implements AudioCall, AutoCloseable {
         }
 
         running = true;
-        
-        // Start send thread (sends mic data to server)
-        this.sendThread = new Thread(this::handleSend);
-        this.sendThread.setDaemon(true);
-        this.sendThread.start();
-
-        // Start receive thread (receives audio from server and plays it)
-        this.receiveThread = new Thread(this::handleReceive);
-        this.receiveThread.setDaemon(true);
-        this.receiveThread.start();
 
         this.consumeThread = new Thread(this::consumeAudio);
         this.consumeThread.setDaemon(true);
         this.consumeThread.start();
+
     }
     @Override
     public void stop() {
         running = false;
-        mic.stop();
-        mic.close();
-        speaker.stop();
-        speaker.close();
-        socket.close();
-        try {
-            this.sendThread.join();
-        } catch (InterruptedException e) {
-            this.sendThread.interrupt();
-        }
-        try {
-            this.receiveThread.join();
-        } catch (InterruptedException e) {
-            this.receiveThread.interrupt();
-        }
+        this.consumeThread.interrupt();
         try {
             this.consumeThread.join();
         } catch (InterruptedException e) {
             this.consumeThread.interrupt();
+        }
+        if (supplyThread != null) {
+            this.supplyThread.interrupt();
+            try {
+                this.supplyThread.join();
+            } catch (InterruptedException e) {
+                this.supplyThread.interrupt();
+            }
+        }
+
+        try {
+            synchronized (mic) {
+                mic.stop();
+                mic.close();
+            }
+            synchronized (speaker) {
+                speaker.stop();
+                speaker.close();
+            }
+            micPipe.close();
+            spkrPipe.close();
+        } catch (Exception e) {
+            System.out.println("Error stopping: " + e.getMessage());
         }
         
     }
@@ -154,60 +136,49 @@ public class AudioCallClient implements AudioCall, AutoCloseable {
         stop();
     }
 
-    private void handleSend() {
-        while (running) {
-            sendAudio();
-        }
-    }
-
-    private void handleReceive() {
-        while (running) {
-            //should this throw an error?
-            receiveAudio();
-        }   
-    }
-
-    private void sendAudio() {
-        int bytesRead = 0;
-        byte[] data;
-        synchronized (mic) {
-            if (mic == null || !mic.isOpen()) {
-                return; //Microphone not ready
-            }
-            int MIC_BUFFER_SIZE = AudioCall.getBufferSize(micFmt, 50);
-            data = new byte[MIC_BUFFER_SIZE];
-            bytesRead = mic.read(data, 0, MIC_BUFFER_SIZE); // blocks until full
-        }
-
-        if (bytesRead <= 0 || data.length == 0) {
-            return;
-        }
-
-        byte[] micData = convertMicStream(data, AudioCall.COMMON_NETWORK_FORMAT);
-        DatagramPacket packet = new DatagramPacket(micData, micData.length, serverAddress, serverPort);
-        try {
-            socket.send(packet);
-        } catch (IOException e) {
-            System.out.println("Error sending packet to server: " + e.getMessage());
-        }
-    }
-
-    private void receiveAudio() {
-        byte[] data = new byte[AudioCall.NETWORK_BUFFER_SIZE];
-        DatagramPacket packet = new DatagramPacket(data, data.length);
-        try {
-            socket.receive(packet);
-        } catch (IOException e) {
-            return; // timeout, just retry
-        }
-        byte[] speakerData = convertSpkrStream(packet.getData(), AudioCall.COMMON_NETWORK_FORMAT);
+    @Override
+    public void offer(byte[] data) {
+        byte[] speakerData = convertSpkrStream(data, AudioCall.COMMON_NETWORK_FORMAT);
         jitterQueue.offer(speakerData); // drops if full — intentional
     }
 
+    private void audioSupplier() {
+        while (running) {
+            // Read raw mic data - blocks until available
+            byte[] data;
+            int bytesRead = 0;
+            synchronized (mic) {
+                if (mic == null || !mic.isOpen()) {
+                    return; //Microphone not ready
+                }
+                int MIC_BUFFER_SIZE = AudioCall.getBufferSize(micFmt, 50);
+                data = new byte[MIC_BUFFER_SIZE];
+                //what if this blocks and the mic needs to change
+                //FIX(start/interrupt the supplier when a mic is set)
+                bytesRead = mic.read(data, 0, MIC_BUFFER_SIZE); // blocks until full
+            }
+
+            if (bytesRead <= 0) {
+                continue;
+            }
+
+            // Convert to network format
+            byte[] networkData = convertMicStream(Arrays.copyOf(data, bytesRead), AudioCall.COMMON_NETWORK_FORMAT);
+            if (onAudioSupply != null) {
+                onAudioSupply.accept(networkData);
+            }
+        }
+    }
+
+    public void setOnAudioSupply(Consumer<byte[]> onAudioSupply) {
+        this.onAudioSupply = onAudioSupply;
+    }
+
     private void consumeAudio() {
-        int silenceSize = AudioCall.getBufferSize(speakerFmt, 50);
+        
         while (running) {
             try {
+                int silenceSize = AudioCall.getBufferSize(speakerFmt, 50);
                 byte[] speakerData = jitterQueue.poll(50, TimeUnit.MILLISECONDS);
                 if (speakerData == null) {
                     // Queue ran dry — write silence to prevent underrun
@@ -254,6 +225,18 @@ public class AudioCallClient implements AudioCall, AutoCloseable {
                 System.out.println("Error setting microphone: " + e.getMessage());
             }
         }
+
+        if (supplyThread.isAlive()) {
+            supplyThread.interrupt();
+            try {
+                supplyThread.join();
+            } catch (InterruptedException e) {
+                supplyThread.interrupt();
+            }
+        }
+        supplyThread = new Thread(this::audioSupplier);
+        supplyThread.setDaemon(true);
+        supplyThread.start();
     }
 
     @Override
@@ -337,5 +320,6 @@ public class AudioCallClient implements AudioCall, AutoCloseable {
             return new byte[tgtFrames * speakerFmt.getFrameSize()];
         }
     }
+
 
 }
