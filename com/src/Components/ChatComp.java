@@ -262,7 +262,7 @@ class ChatBox extends VBox {
         this.sendBox.setSpacing(10);
         this.sendBox.getStyleClass().add("send-box");
         this.chatDisplay = new VBox();
-        this.chatDisplay.setSpacing(4);
+        this.chatDisplay.setSpacing(4); // slight gap between message bubbles for readability
         this.getChildren().add(this.chatDisplay);
         this.getChildren().addAll(this.sendBox);
         

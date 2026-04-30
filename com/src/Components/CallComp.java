@@ -54,11 +54,14 @@ public class CallComp extends StackPane {
         
         // Add placeholder users for demo
         for (int i = 0; i < 4; i++) {
+            StackPane userContainer = new StackPane();
+            userContainer.getStyleClass().add("audio-user-placeholder");
+            userContainer.setMinSize(100, 100);
             Label userPlaceholder = new Label("User " + (i + 1));
-            userPlaceholder.getStyleClass().addAll("audio-user-placeholder", "audio-user-label");
-            userPlaceholder.setMinSize(100, 100);
+            userPlaceholder.getStyleClass().add("audio-user-label");
             userPlaceholder.setAlignment(Pos.CENTER);
-            this.callUsers.add(userPlaceholder, i % 2, i / 2);
+            userContainer.getChildren().add(userPlaceholder);
+            this.callUsers.add(userContainer, i % 2, i / 2);
         }
         
         VBox.setVgrow(this.callUsers, Priority.ALWAYS);
