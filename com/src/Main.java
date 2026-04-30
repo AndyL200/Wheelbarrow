@@ -2,6 +2,7 @@ import Handlers.SceneHandler;
 import javafx.application.Application;
 import javafx.stage.Stage;
 import Scenes.ChatScene;
+import Scenes.LoginScene;
 
 
 public class Main extends Application {
@@ -16,7 +17,9 @@ public class Main extends Application {
     public void start(Stage stage) {
         
         stage.setTitle("OnlineCom");
-        this.controller = new SceneHandler(stage, new ChatScene(800, 600));
+        LoginScene login = new LoginScene(800, 600);
+        this.controller = new SceneHandler(stage, login);
+        login.setOnLogin((l) -> this.controller.switchScene(new ChatScene()));
         
 
         stage.show();

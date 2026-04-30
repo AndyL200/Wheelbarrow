@@ -47,8 +47,8 @@ public class AudioCallClient implements AudioCall, AutoCloseable {
     public AudioCallClient() {
         // Note: serverHost and serverPort are kept for compatibility but not used
         // Audio routing is handled by CallClient's socket management
-        micFmt = AudioCall.getBestFormat(null); // Use default mixer
-        speakerFmt = AudioCall.getBestFormat(null); // Use default mixer
+        micFmt = AudioCall.getBestFormat(null, TargetDataLine.class); // Use default mixer
+        speakerFmt = AudioCall.getBestFormat(null, SourceDataLine.class); // Use default mixer
         micPipe = new PipedOutputStream();
         spkrPipe = new PipedOutputStream();
 
@@ -198,7 +198,7 @@ public class AudioCallClient implements AudioCall, AutoCloseable {
     @Override
     public void setMic(Mixer.Info mixerInfo) {
         synchronized (mic) {
-            micFmt = AudioCall.getBestFormat(mixerInfo);
+            micFmt = AudioCall.getBestFormat(mixerInfo, TargetDataLine.class);
             try {
                 TargetDataLine newMic = AudioCall.findMic(mixerInfo);
                 if (newMic != null) {
@@ -226,7 +226,7 @@ public class AudioCallClient implements AudioCall, AutoCloseable {
             }
         }
 
-        if (supplyThread.isAlive()) {
+        if (supplyThread != null && supplyThread.isAlive()) {
             supplyThread.interrupt();
             try {
                 supplyThread.join();
@@ -242,7 +242,7 @@ public class AudioCallClient implements AudioCall, AutoCloseable {
     @Override
     public void setSpeaker(Mixer.Info mixerInfo) {
         synchronized (speaker) {
-            speakerFmt = AudioCall.getBestFormat(mixerInfo);
+            speakerFmt = AudioCall.getBestFormat(mixerInfo, SourceDataLine.class);
             try {
                 SourceDataLine newSpeaker = AudioCall.findSpeaker(mixerInfo);
                 if (newSpeaker != null) {

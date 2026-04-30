@@ -62,6 +62,11 @@ public class ThemeManager {
         }
     }
 
+    /** Add an additional stylesheet to a specific scene using ThemeManager's loader. */
+    public void addSceneCss(Scene scene, String classpathPath, String fallbackCss) {
+        scene.getStylesheets().add(loadCss(classpathPath, fallbackCss));
+    }
+
     // -------------------------------------------------------------------------
     // CSS loading with embedded fallback
     // -------------------------------------------------------------------------
@@ -243,4 +248,16 @@ public class ThemeManager {
         ".add-server-submit-btn:hover{-fx-background-color:#1D4EBB;}" +
         ".add-server-create-btn{-fx-background-color:#388E3C;-fx-text-fill:#ffffff;}" +
         ".add-server-create-btn:hover{-fx-background-color:#2E7D32;}";
+
+    public static final String LOGIN_CSS =
+        ".login-root{-fx-alignment:center;}" +
+        ".login-app-title{-fx-font-size:28px;-fx-font-weight:bold;-fx-text-fill:-fx-text-base-color;}" +
+        ".login-card{-fx-background-color:rgba(255,255,255,0.02);-fx-padding:20px;-fx-border-radius:8px;-fx-background-radius:8px;}" +
+        ".login-welcome{-fx-font-size:16px;-fx-font-weight:bold;}" +
+        ".login-hint{-fx-font-size:12px;-fx-text-fill:-fx-prompt-text-fill;}" +
+        ".login-field{-fx-pref-width:100%;-fx-padding:8px 10px;-fx-background-radius:6px;-fx-border-radius:6px;}" +
+        ".login-btn{-fx-padding:8px 12px;-fx-background-radius:6px;-fx-border-radius:6px;-fx-cursor:hand;}" +
+        ".login-link{-fx-text-fill:-fx-accent;-fx-underline:true;}" +
+        ".login-error{-fx-text-fill:#ff6b6b;-fx-font-size:12px;}";
+
 }

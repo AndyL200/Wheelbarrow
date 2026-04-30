@@ -64,20 +64,19 @@ public interface AudioCall extends Call {
         return result;
     }
 
-    public static AudioFormat getBestFormat(Mixer.Info mixerInfo) {
+    public static AudioFormat getBestFormat(Mixer.Info mixerInfo, Class<? extends DataLine> lineType) {
         if (mixerInfo == null) {
-                try {
-                for (Mixer.Info info : AudioSystem.getMixerInfo()) {
-                    Mixer mixer = AudioSystem.getMixer(info);
-                    if (mixer.isLineSupported(new DataLine.Info(TargetDataLine.class, null))) {
-                        return getBestFormat(info); // reuse your probing logic
-                    }
+            for (Mixer.Info info : AudioSystem.getMixerInfo()) {
+                Mixer mixer = AudioSystem.getMixer(info);
+                if (mixer.isLineSupported(new DataLine.Info(lineType, (AudioFormat) null))) {
+                    AudioFormat fmt = getBestFormat(info, lineType);
+                    if (fmt != null) return fmt;
                 }
-            } catch (Exception e) { }
-                return new AudioFormat(44100f, 16, 2, true, false);
+            }
+            return new AudioFormat(44100f, 16, 2, true, false);
         }
-        Mixer mixer = AudioSystem.getMixer(mixerInfo);
 
+        Mixer mixer = AudioSystem.getMixer(mixerInfo);
         float[] sampleRates = {192000f, 96000f, 48000f, 44100f, 22050f, 16000f, 8000f};
         int[] sampleSizes  = {32, 24, 16, 8};
         int[] channels     = {2, 1};
@@ -86,14 +85,22 @@ public interface AudioCall extends Call {
             for (int size : sampleSizes) {
                 for (int ch : channels) {
                     AudioFormat candidate = new AudioFormat(rate, size, ch, true, false);
-                    DataLine.Info info = new DataLine.Info(TargetDataLine.class, candidate);
-                    if (mixer.isLineSupported(info)) {
-                        return candidate; // first match = best match
+                    DataLine.Info info = new DataLine.Info(lineType, candidate);
+                    if (!mixer.isLineSupported(info)) continue;
+
+                    // Actually try to open it — filters out devices that lie about support
+                    try {
+                        DataLine line = (DataLine) mixer.getLine(info);
+                        line.open();
+                        line.close(); // immediately close, we just needed to verify
+                        return candidate;
+                    } catch (LineUnavailableException | IllegalArgumentException e) {
+                        // This format/device combo doesn't actually work, keep probing
                     }
                 }
             }
         }
-        return new AudioFormat(44100f, 16, 2, true, false); // safe fallback
+        return null;
     }
 
     
