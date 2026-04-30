@@ -81,7 +81,6 @@ public class VideoCallComp extends StackPane {
         // Add user components - each can hold a canvas
         for (int i = 0; i < 4; i++) {
             StackPane userContainer = new StackPane();
-            userContainer.setStyle("-fx-border-color: #cccccc; -fx-border-width: 1;");
             userContainer.setMinSize(150, 150);
             userContainer.getStyleClass().add("video-user-placeholder");
             
@@ -91,7 +90,7 @@ public class VideoCallComp extends StackPane {
             } else {
                 // Other users get placeholder labels
                 Label userPlaceholder = new Label("User " + (i + 1));
-                userPlaceholder.setStyle("-fx-text-fill: #ffffff; -fx-font-size: 12px;");
+                userPlaceholder.getStyleClass().add("video-user-label");
                 userPlaceholder.setAlignment(Pos.CENTER);
                 userContainer.getChildren().add(userPlaceholder);
             }
