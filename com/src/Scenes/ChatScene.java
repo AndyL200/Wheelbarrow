@@ -13,6 +13,7 @@ import Components.ServerEntry;
 import Components.ServerOverlay;
 import Components.Sidebar;
 import Components.Helper.ServerList;
+import Handlers.ThemeManager;
 import Network.Client;
 import Network.Server;
 import Network.ServerInfo;
@@ -30,19 +31,9 @@ public class ChatScene extends AppSceneTemplate {
     private User u = null;
     private HBox hbox;
 
-    private void initStyles() {
-        try {
-            String css = getClass().getResource("/Styles/chatStyles.css").toExternalForm();
-            getStylesheets().add(css);
-        } catch (Exception e) {
-            System.err.println("Failed to load styles: " + e.getMessage());
-            e.printStackTrace();
-        }
-    }
-
     public ChatScene() {
         super();
-        initStyles();
+        ThemeManager.getInstance().registerScene(this);
         this.root = new StackPane();
         this.hbox = new HBox();
 
@@ -68,7 +59,7 @@ public class ChatScene extends AppSceneTemplate {
     }
     public ChatScene(int width, int height) {
         super(width, height);
-        initStyles();
+        ThemeManager.getInstance().registerScene(this);
 
         this.root = new StackPane();
         this.hbox = new HBox();

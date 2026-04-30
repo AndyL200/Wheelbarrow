@@ -56,7 +56,7 @@ public class ChatNav extends HBox{
             titleLabel = new Label(info.SERVER_NAME.get());
             titleLabel.textProperty().bind(info.SERVER_NAME);
         }
-        titleLabel.setStyle("-fx-text-fill: #e11212;");
+        titleLabel.getStyleClass().add("server-title-label");
         //titleLabel.setAlignment(Pos.CENTER);
         titleLabel.setMinWidth(titleLabel.getText().length());
         titleLabel.setPrefWidth(Region.USE_COMPUTED_SIZE);

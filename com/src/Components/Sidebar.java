@@ -56,12 +56,12 @@ public class Sidebar extends ScrollPane {
     public StackPane createPlusButton() {
         // Create circle
         Circle circle = new Circle(25);
-        circle.setStyle("-fx-fill: #555555; -fx-stroke: #888888; -fx-stroke-width: 2;");
+        circle.getStyleClass().add("sidebar-add-btn-circle");
         circle.setCursor(javafx.scene.Cursor.HAND);
         
         // Create plus label
         Label plusLabel = new Label("+");
-        plusLabel.setStyle("-fx-font-size: 28px; -fx-text-fill: #ffffff;");
+        plusLabel.getStyleClass().add("sidebar-add-btn-label");
         plusLabel.setCursor(javafx.scene.Cursor.HAND);
         
         // Stack them together
@@ -71,9 +71,15 @@ public class Sidebar extends ScrollPane {
         // Add click functionality
         stackPane.setOnMouseClicked(e -> onAddServer.run());
         
-        // Add hover effect
-        stackPane.setOnMouseEntered(e -> circle.setStyle("-fx-fill: #666666; -fx-stroke: #999999; -fx-stroke-width: 2;"));
-        stackPane.setOnMouseExited(e -> circle.setStyle("-fx-fill: #555555; -fx-stroke: #888888; -fx-stroke-width: 2;"));
+        // Add hover effect via CSS classes
+        stackPane.setOnMouseEntered(e -> {
+            circle.getStyleClass().remove("sidebar-add-btn-circle");
+            circle.getStyleClass().add("sidebar-add-btn-circle-hover");
+        });
+        stackPane.setOnMouseExited(e -> {
+            circle.getStyleClass().remove("sidebar-add-btn-circle-hover");
+            circle.getStyleClass().add("sidebar-add-btn-circle");
+        });
         
         return stackPane;
     }
@@ -110,9 +116,9 @@ public class Sidebar extends ScrollPane {
 
     public void highlightEntry(int idx) {
         if (hightlightedIdx != -1) {
-            this.core.getChildren().get(hightlightedIdx).setStyle(""); //reset old highlight
+            this.core.getChildren().get(hightlightedIdx).getStyleClass().remove("server-entry-selected");
         }
-        this.core.getChildren().get(idx).setStyle("-fx-border-color: #00ff00; -fx-border-width: 3;");
+        this.core.getChildren().get(idx).getStyleClass().add("server-entry-selected");
         this.hightlightedIdx = idx;
     }
 }

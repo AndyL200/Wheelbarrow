@@ -243,6 +243,7 @@ class ChatBox extends VBox {
 
 
         msgBox.setPromptText("Type a message");
+        msgBox.getStyleClass().add("msg-input");
         msgBox.setOnKeyPressed(e -> {
             if (e.getCode().toString().equals("ENTER")) {
                 onSend.accept(getMessage());
@@ -255,6 +256,7 @@ class ChatBox extends VBox {
         HBox.setHgrow(msgBox, Priority.ALWAYS);
         
         Button sendBtn = new Button("Send");
+        sendBtn.getStyleClass().add("send-btn");
         sendBtn.setOnAction(e -> {
             onSend.accept(getMessage());
             addToDisplayAndClear();
@@ -265,7 +267,7 @@ class ChatBox extends VBox {
         this.sendBox.setSpacing(10);
         this.sendBox.getStyleClass().add("send-box");
         this.chatDisplay = new VBox();
-        this.chatDisplay.setSpacing(1);
+        this.chatDisplay.setSpacing(4); // slight gap between message bubbles for readability
         this.getChildren().add(this.chatDisplay);
         this.getChildren().addAll(this.sendBox);
         
@@ -274,7 +276,6 @@ class ChatBox extends VBox {
         VBox.setVgrow(this.sendBox, Priority.ALWAYS);
         HBox.setHgrow(this.chatDisplay, Priority.ALWAYS);
         HBox.setHgrow(this.sendBox, Priority.ALWAYS);
-        this.setOnMouseClicked((e) -> this.setStyle("-fx-border-color: #00ff00; -fx-border-width: 3;"));
 
     }
 
@@ -291,7 +292,9 @@ class ChatBox extends VBox {
     }
 
     public void addToDisplayAndClear() {
-        chatDisplay.getChildren().add(new Label(getMessage()));
+        Label label = new Label(getMessage());
+        label.getStyleClass().add("message-label");
+        chatDisplay.getChildren().add(label);
         msgBox.clear();
     }
 
@@ -303,7 +306,9 @@ class ChatBox extends VBox {
             currentlyTyping.clear();
         }
         
-        chatDisplay.getChildren().add(new Label(message.sender + ": " + new String(message.messageData)));
+        Label label = new Label(message.sender + ": " + new String(message.messageData));
+        label.getStyleClass().add("message-label");
+        chatDisplay.getChildren().add(label);
     }
 
     public void addTypingToDisplay(Message message) {
@@ -313,7 +318,9 @@ class ChatBox extends VBox {
         }
         if (!isTyping) {
             typingString = message.sender + " is typing...";
-            chatDisplay.getChildren().add(new Label(typingString));
+            Label label = new Label(typingString);
+            label.getStyleClass().add("message-label");
+            chatDisplay.getChildren().add(label);
             typingIdx = chatDisplay.getChildren().size() - 1;
             isTyping = true;
             currentlyTyping.add(message.sender);
@@ -322,14 +329,18 @@ class ChatBox extends VBox {
             
             typingString = currentlyTyping.size() + " people are typing...";
             chatDisplay.getChildren().remove(typingIdx);
-            chatDisplay.getChildren().add(new Label(typingString));
+            Label label = new Label(typingString);
+            label.getStyleClass().add("message-label");
+            chatDisplay.getChildren().add(label);
             typingIdx = chatDisplay.getChildren().size() - 1;
             currentlyTyping.add(message.sender);
         }
         else {
             typingString = message.sender + " and  " + typingString;
             chatDisplay.getChildren().remove(typingIdx);
-            chatDisplay.getChildren().add(new Label(typingString));
+            Label label = new Label(typingString);
+            label.getStyleClass().add("message-label");
+            chatDisplay.getChildren().add(label);
             typingIdx = chatDisplay.getChildren().size() - 1;
         }
         
