@@ -8,6 +8,7 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.attribute.PosixFilePermission;
 import java.nio.file.attribute.PosixFilePermissions;
+import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
 import java.security.spec.InvalidKeySpecException;
@@ -100,8 +101,9 @@ public class LocalCredentials {
                 return false;
             }
             SecretKey key = Security.getKeyFromPassword(password, salt);
-            String hash = Base64.getEncoder().encodeToString(key.getEncoded());
-            return hash.equals(storedHash);
+            byte[] computedHash = key.getEncoded();
+            byte[] storedHashBytes = Base64.getDecoder().decode(storedHash);
+            return MessageDigest.isEqual(computedHash, storedHashBytes);
         } catch (Exception e) {
             System.out.println("Error verifying credentials: " + e.getMessage());
             return false;

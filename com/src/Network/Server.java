@@ -51,6 +51,8 @@ public class Server implements User, AutoCloseable {
     private Thread acceptor;
     private SecretKey sessionKey;
     private Set<Socket> authenticatedClients = Collections.synchronizedSet(new HashSet<>());
+    // Cached at start-up; re-evaluate with LocalCredentials.hasCredentials() if credentials are registered at runtime
+    private boolean authRequired = LocalCredentials.hasCredentials();
 
     private static final int MAX_LOGIN_ATTEMPTS = 5;
 
@@ -89,7 +91,6 @@ public class Server implements User, AutoCloseable {
                 }
 
                 // Require successful LOGIN before allowing any other message type
-                boolean authRequired = LocalCredentials.hasCredentials();
                 boolean isAuthenticated = !authRequired || authenticatedClients.contains(client);
 
                 if ((type & MessageType.LOGIN.getValue()) > 0) {
@@ -157,7 +158,9 @@ public class Server implements User, AutoCloseable {
             if (failedLoginAttempts >= MAX_LOGIN_ATTEMPTS) {
                 System.out.println("Too many login attempts from " + client.getRemoteSocketAddress() + ", closing connection");
                 sendAuthResult(client, false);
-                try { client.close(); } catch (IOException ignored) {}
+                try { client.close(); } catch (IOException e) {
+                    System.out.println("Error closing client socket after too many login attempts: " + e.getMessage());
+                }
                 return;
             }
 
