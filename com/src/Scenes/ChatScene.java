@@ -8,23 +8,54 @@ import java.net.UnknownHostException;
 
 import org.json.JSONObject;
 
+import Assets.SettingsIcon;
 import Components.ChatComp;
 import Components.ServerEntry;
 import Components.ServerOverlay;
 import Components.Sidebar;
 import Components.Helper.ServerList;
+import Handlers.SceneHandler;
 import Handlers.ThemeManager;
 import Network.Client;
 import Network.Server;
 import Network.ServerInfo;
 import Network.User;
+import javafx.scene.control.Button;
 import javafx.scene.image.Image;
 import javafx.scene.layout.HBox;
+import javafx.scene.layout.Priority;
 import javafx.scene.layout.StackPane;
+import javafx.scene.layout.VBox;
 import javafx.util.Pair;
 
+class SidebarContainer extends VBox {
+    public Sidebar sidebar;
+    public Button settingsButton;
+    public SidebarContainer(Sidebar sidebar, Button settingsButton) {
+        this.sidebar = sidebar;
+        this.sidebar.prefHeightProperty().bind(this.heightProperty());
+        this.settingsButton = settingsButton;
+
+        double buttonSize = 10;
+        settingsButton.setMinSize(buttonSize, buttonSize);
+        settingsButton.setPrefSize(buttonSize, buttonSize);
+        settingsButton.setMaxSize(Double.MAX_VALUE, Double.MAX_VALUE);
+        // Bind height to width to maintain square aspect ratio
+        settingsButton.prefHeightProperty().bind(settingsButton.widthProperty());
+        settingsButton.setGraphic(new SettingsIcon());
+
+        
+
+        this.getChildren().add(sidebar);
+        this.getChildren().add(settingsButton);
+        VBox.setVgrow(this, Priority.ALWAYS);
+        this.setMaxHeight(Double.MAX_VALUE);
+    }
+}
+
 public class ChatScene extends AppSceneTemplate {
-    private Sidebar sidebar;
+    private SidebarContainer sideContain;
+
     private ChatComp chatComp;
     private ServerList serverList;
     private StackPane root;
@@ -37,9 +68,15 @@ public class ChatScene extends AppSceneTemplate {
         this.root = new StackPane();
         this.hbox = new HBox();
 
-        this.sidebar = new Sidebar();
-        this.sidebar.setOnAddServer(this::openServerOverlay);
-        this.sidebar.setOnServerSelect(this::enterServer);
+        this.sideContain = new SidebarContainer(new Sidebar(), new Button());
+        this.sideContain.sidebar.setOnAddServer(this::openServerOverlay);
+        this.sideContain.sidebar.setOnServerSelect(this::enterServer);
+        // Bind the sidebar container height to the scene height so it matches ChatScene
+        this.sideContain.prefHeightProperty().bind(this.heightProperty());
+
+        this.sideContain.settingsButton.setOnMouseClicked((e) -> {
+            SceneHandler.get().switchScene(new SettingsScene());
+        });
 
         this.chatComp = null;
         
@@ -51,7 +88,7 @@ public class ChatScene extends AppSceneTemplate {
         //HBox.setHgrow(this.sidebar, javafx.scene.layout.Priority.ALWAYS);
         
         
-        this.hbox.getChildren().add(this.sidebar);
+        this.hbox.getChildren().add(this.sideContain);
         this.root.getChildren().add(this.hbox);
         this.setRoot(this.root);
 
@@ -64,9 +101,18 @@ public class ChatScene extends AppSceneTemplate {
         this.root = new StackPane();
         this.hbox = new HBox();
 
-        this.sidebar = new Sidebar();
-        this.sidebar.setOnAddServer(this::openServerOverlay);
-        this.sidebar.setOnServerSelect(this::enterServer);
+        this.sideContain = new SidebarContainer(new Sidebar(), new Button());
+        this.sideContain.sidebar.setOnAddServer(this::openServerOverlay);
+        this.sideContain.sidebar.setOnServerSelect(this::enterServer);
+
+        // Bind the sidebar container height to the scene height so it matches ChatScene
+        this.sideContain.prefHeightProperty().bind(this.heightProperty());
+
+
+        this.sideContain.settingsButton.setOnMouseClicked((e) -> {
+            SceneHandler.get().switchScene(new SettingsScene());
+        });
+
 
         this.chatComp = null;
         
@@ -79,7 +125,8 @@ public class ChatScene extends AppSceneTemplate {
         // Make children stretch to fill the HBox
         //HBox.setHgrow(this.sidebar, javafx.scene.layout.Priority.ALWAYS);
         
-        this.hbox.getChildren().add(this.sidebar);
+        
+        this.hbox.getChildren().add(this.sideContain);
         this.root.getChildren().add(this.hbox);
         this.setRoot(this.root);
     }
@@ -143,7 +190,7 @@ public class ChatScene extends AppSceneTemplate {
         ServerInfo info = new ServerInfo(address.toString(), address, port, null);
 
         ServerEntry entry = Sidebar.createServerEntry(info);
-        this.sidebar.addServerEntry(entry);
+        this.sideContain.sidebar.addServerEntry(entry);
         return info;
     }
     public void addServerToList(ServerEntry entry) {
@@ -174,7 +221,7 @@ public class ChatScene extends AppSceneTemplate {
                         entry = Sidebar.createServerEntry(info);
                     }
 
-                    this.sidebar.addServerEntry(entry);
+                    this.sideContain.sidebar.addServerEntry(entry);
                 }
                 catch (Exception e) {
                     System.err.println("Error loading server entry: " + e.getMessage());

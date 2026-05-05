@@ -18,7 +18,8 @@ public class Main extends Application {
         
         stage.setTitle("OnlineCom");
         LoginScene login = new LoginScene(800, 600);
-        this.controller = new SceneHandler(stage, login);
+        SceneHandler.init(stage, login);
+        this.controller = SceneHandler.get();
         login.setOnLogin((l) -> this.controller.switchScene(new ChatScene()));
         
 

@@ -38,6 +38,20 @@ public class LoginScene extends AppSceneTemplate {
         this.setRoot(this.root);
     }
 
+    //adapt to existing size
+    public LoginScene() {
+        super();
+        initStyles();
+        this.root = new StackPane();
+        buildUI();
+        this.root.setMaxHeight(Double.MAX_VALUE);
+        this.root.setMaxWidth(Double.MAX_VALUE);
+        this.setRoot(this.root);
+
+        
+   
+    }
+
     private void initStyles() {
         try {
             ThemeManager.getInstance().registerScene(this);
@@ -52,7 +66,7 @@ public class LoginScene extends AppSceneTemplate {
         this.root.setMaxSize(Double.MAX_VALUE, Double.MAX_VALUE);
 
         // App title shown above the card
-        Label appTitle = new Label("OnlineCom");
+        Label appTitle = new Label("Wheelbarrow");
         appTitle.getStyleClass().add("login-app-title");
 
         // Error label (hidden until needed)
@@ -130,11 +144,7 @@ public class LoginScene extends AppSceneTemplate {
         Hyperlink switchUser = new Hyperlink("Not you? Switch user");
         switchUser.getStyleClass().add("login-link");
         switchUser.setOnAction(e -> {
-            try {
-                LocalProfile.delete();
-            } catch (IOException ex) {
-                System.err.println("Could not delete profile: " + ex.getMessage());
-            }
+            LocalProfile.delete();
             root.getChildren().clear();
             buildUI();
         });

@@ -101,20 +101,8 @@ public class AudioCallServer implements AudioCall, AutoCloseable {
     @Override
     public void stop() {
         running = false;
-        this.consumeThread.interrupt();
-        try {
-            this.consumeThread.join();
-        } catch (InterruptedException e) {
-            this.consumeThread.interrupt();
-        }
-        if (supplyThread != null) {
-            this.supplyThread.interrupt();
-            try {
-                this.supplyThread.join();
-            } catch (InterruptedException e) {
-                this.supplyThread.interrupt();
-            }
-        }
+        stopThread(this.consumeThread);
+        stopThread(this.supplyThread);
 
         try {
             synchronized (mic) {
@@ -135,6 +123,17 @@ public class AudioCallServer implements AudioCall, AutoCloseable {
     @Override
     public void close() {
         stop();
+    }
+
+    //helper method
+    private void stopThread(Thread t) {
+        if (t == null || !t.isAlive()) return;
+            t.interrupt();
+        try {
+            t.join();
+        } catch (InterruptedException e) {
+            System.out.println("Interrupted while waiting for thread to stop: " + e.getMessage());
+        }
     }
     
     @Override
@@ -194,6 +193,10 @@ public class AudioCallServer implements AudioCall, AutoCloseable {
                         System.out.println("Error setting up microphone pipeline: " + e.getMessage());
                     }
                     mic.start();
+                    stopThread(supplyThread);
+                    supplyThread = new Thread(this::audioSupplier);
+                    supplyThread.setDaemon(true);
+                    supplyThread.start();
                     System.out.println("Microphone set to: " + mixerInfo.getName());
                 } else {
                     System.out.println("Failed to set microphone: " + mixerInfo.getName());
@@ -203,17 +206,7 @@ public class AudioCallServer implements AudioCall, AutoCloseable {
             }
         }
 
-        if (supplyThread != null && supplyThread.isAlive()) {
-            supplyThread.interrupt();
-            try {
-                supplyThread.join();
-            } catch (InterruptedException e) {
-                supplyThread.interrupt();
-            }
-        }
-        supplyThread = new Thread(this::audioSupplier);
-        supplyThread.setDaemon(true);
-        supplyThread.start();
+        
     }
     @Override
     public void setSpeaker(Mixer.Info mixerInfo) {
@@ -237,7 +230,10 @@ public class AudioCallServer implements AudioCall, AutoCloseable {
                         System.out.println("Error setting up speaker pipeline: " + e.getMessage());
                     }
                     speaker.start();
-                    
+                    stopThread(this.consumeThread);
+                    consumeThread = new Thread(this::consumeAudio);
+                    consumeThread.setDaemon(true);
+                    consumeThread.start();
                     System.out.println("Speaker set to: " + mixerInfo.getName());
                 } else {
                     System.out.println("Failed to set speaker: " + mixerInfo.getName());
@@ -246,6 +242,8 @@ public class AudioCallServer implements AudioCall, AutoCloseable {
                 System.out.println("Error setting speaker: " + e.getMessage());
             }  
         }
+
+
     }
 
     private void consumeAudio() {

@@ -5,6 +5,7 @@ import java.util.function.Consumer;
 import java.util.function.Supplier;
 
 import Components.ComponentMacros.MessageType;
+import Components.Config.LocalProfile;
 import Components.Helper.CallConfig;
 import Network.AudioCallClient;
 import Network.AudioCallServer;
@@ -63,7 +64,7 @@ public class ChatComp extends StackPane{
         ChatBox chatBox = new ChatBox();
         chatBox.setKeyConsume(this::outtyping);
         chatBox.setOnSend((message) -> {
-            Message msg = new Message(user.getName(), message, MessageType.MESSAGE.getValue());
+            Message msg = new Message(LocalProfile.getUsername(), message, MessageType.MESSAGE.getValue());
             sendMessage(msg);
         });
 
@@ -93,7 +94,7 @@ public class ChatComp extends StackPane{
 
             if ((message.type & MessageType.AUDIO_HOST.getValue()) > 0) {
                 CallConfig config = CallConfig.fromBytes(message.messageData);
-                if (message.sender.equals(user.getName()) || config.HOSTNAME.equals(user.getName())) { return; }
+                if (message.sender.equals(LocalProfile.getUsername()) || config.HOSTNAME.equals(user.getName())) { return; }
                 chatNav.addAvailableCall(config);
                 return;
             }
@@ -123,7 +124,7 @@ public class ChatComp extends StackPane{
     private void outtyping(KeyEvent e) {
         if (user == null) return;
         //on outtyping, the chatBox doesn't need to change but a typing signal must still be broadcast to all users
-        Message msg = new Message(user.getName(), "", MessageType.TYPING.getValue());
+        Message msg = new Message(LocalProfile.getUsername(), "", MessageType.TYPING.getValue());
         sendMessage(msg);
     }
 

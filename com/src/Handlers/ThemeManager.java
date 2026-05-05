@@ -7,6 +7,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 import javafx.scene.Scene;
+import javafx.scene.Parent;
 
 /**
  * ThemeManager — singleton that manages light/dark theme switching.
@@ -59,6 +60,18 @@ public class ThemeManager {
             scene.getStylesheets().add(loadCss("/Styles/darkTheme.css", DARK_THEME_CSS));
         } else {
             scene.getStylesheets().add(loadCss("/Styles/lightTheme.css", LIGHT_THEME_CSS));
+        }
+
+        // Add a theme class to the scene root so per-scene CSS can target light/dark specifically
+        try {
+            Parent root = scene.getRoot();
+            if (root != null) {
+                root.getStyleClass().remove("theme-dark");
+                root.getStyleClass().remove("theme-light");
+                root.getStyleClass().add(currentTheme == Theme.DARK ? "theme-dark" : "theme-light");
+            }
+        } catch (Exception e) {
+            // Non-fatal: some scenes may not have a root yet
         }
     }
 
@@ -120,69 +133,69 @@ public class ThemeManager {
         ".add-server-submit-btn,.add-server-create-btn{-fx-padding:10px 0;-fx-font-size:13px;-fx-cursor:hand;-fx-background-radius:6;-fx-border-radius:6;-fx-pref-width:220px;-fx-border-color:transparent;}";
 
     private static final String DARK_THEME_CSS =
-        ".root{-fx-base:#253545;-fx-background:#1E2A38;-fx-control-inner-background:#253545;-fx-accent:#5C9EE6;}" +
-        ".scroll-bar{-fx-background-color:#1A2530;}" +
-        ".scroll-bar>.thumb{-fx-background-color:#3E6B8C;-fx-background-radius:4;}" +
-        ".scroll-bar>.track{-fx-background-color:#1E2A38;}" +
-        ".scroll-bar>.increment-button,.scroll-bar>.decrement-button{-fx-background-color:#1A2530;-fx-padding:2;}" +
-        ".sidebar-style{-fx-background-color:#1A2530;}" +
-        ".sidebar-core{-fx-background-color:#1A2530;}" +
-        ".sidebar-add-btn-circle{-fx-fill:#2D4157;-fx-stroke:#3E6B8C;-fx-stroke-width:2;}" +
-        ".sidebar-add-btn-circle-hover{-fx-fill:#3A5268;-fx-stroke:#5C9EE6;-fx-stroke-width:2;}" +
-        ".sidebar-add-btn-label{-fx-text-fill:#E8EDF2;}" +
-        ".server-entry-selected{-fx-border-color:#5C9EE6;}" +
-        ".navbar{-fx-background-color:#253545;-fx-border-color:#1A2530;}" +
-        ".server-title-label{-fx-text-fill:#E8EDF2;}" +
+        ".root{-fx-base:#2d2d2d;-fx-background:#1a1a1a;-fx-control-inner-background:#2d2d2d;-fx-accent:#00acc1;}" +
+        ".scroll-bar{-fx-background-color:#1a1a1a;}" +
+        ".scroll-bar>.thumb{-fx-background-color:#666666;-fx-background-radius:4;}" +
+        ".scroll-bar>.track{-fx-background-color:#1a1a1a;}" +
+        ".scroll-bar>.increment-button,.scroll-bar>.decrement-button{-fx-background-color:#1a1a1a;-fx-padding:2;}" +
+        ".sidebar-style{-fx-background-color:#2d2d2d;-fx-pref-width:70;}" +
+        ".sidebar-core{-fx-background-color:#2d2d2d;}" +
+        ".sidebar-add-btn-circle{-fx-fill:#3f3f3f;-fx-stroke:#00acc1;-fx-stroke-width:2;}" +
+        ".sidebar-add-btn-circle-hover{-fx-fill:#4a4a4a;-fx-stroke:#e53935;-fx-stroke-width:2;}" +
+        ".sidebar-add-btn-label{-fx-text-fill:#ffffff;}" +
+        ".server-entry-selected{-fx-border-color:#00acc1;}" +
+        ".navbar{-fx-background-color:#2d2d2d;-fx-border-color:#444444;}" +
+        ".server-title-label{-fx-text-fill:#ffffff;}" +
         ".audio-call-btn{-fx-background-color:transparent;}" +
         ".audio-call-btn-hover{-fx-background-color:rgba(255,255,255,0.08);}" +
-        ".audio-call-btn-active{-fx-background-color:rgba(102,187,106,0.25);-fx-border-color:#66BB6A;}" +
+        ".audio-call-btn-active{-fx-background-color:rgba(0,172,193,0.25);-fx-border-color:#00acc1;}" +
         ".video-call-btn{-fx-background-color:transparent;}" +
         ".video-call-btn-hover{-fx-background-color:rgba(255,255,255,0.08);}" +
-        ".video-call-btn-active{-fx-background-color:rgba(66,165,245,0.25);-fx-border-color:#42A5F5;}" +
+        ".video-call-btn-active{-fx-background-color:rgba(229,57,53,0.25);-fx-border-color:#e53935;}" +
         ".disconnect-btn{-fx-background-color:transparent;}" +
         ".disconnect-btn-hover{-fx-background-color:rgba(239,83,80,0.18);}" +
-        ".chat-comp{-fx-background-color:#1E2A38;}" +
-        ".chat-box{-fx-background-color:#1E2A38;}" +
-        ".send-box{-fx-background-color:#253545;-fx-border-color:#1A2530;}" +
-        ".msg-input{-fx-background-color:#2D4157;-fx-text-fill:#E8EDF2;-fx-prompt-text-fill:#8FA8BF;-fx-border-color:#3E6B8C;}" +
-        ".msg-input:focused{-fx-border-color:#5C9EE6;}" +
-        ".send-btn{-fx-background-color:#2563EB;-fx-text-fill:#ffffff;}" +
-        ".send-btn:hover{-fx-background-color:#1D4EBB;}" +
-        ".message-label{-fx-text-fill:#E8EDF2;-fx-background-color:#2D4157;}" +
+        ".chat-comp{-fx-background-color:#1a1a1a;}" +
+        ".chat-box{-fx-background-color:#1a1a1a;}" +
+        ".send-box{-fx-background-color:#2d2d2d;-fx-border-color:#444444;}" +
+        ".msg-input{-fx-background-color:#3f3f3f;-fx-text-fill:#ffffff;-fx-prompt-text-fill:rgba(102,102,102,0.80);-fx-border-color:#555555;}" +
+        ".msg-input:focused{-fx-border-color:#00acc1;}" +
+        ".send-btn{-fx-background-color:#00acc1;-fx-text-fill:#ffffff;}" +
+        ".send-btn:hover{-fx-background-color:#e53935;}" +
+        ".message-label{-fx-text-fill:#ffffff;-fx-background-color:#3f3f3f;}" +
         ".audio-call-comp{-fx-background-color:rgba(0,0,0,0.85);}" +
-        ".audio-call-container{-fx-background-color:#253545;-fx-border-color:#66BB6A;}" +
+        ".audio-call-container{-fx-background-color:#2d2d2d;-fx-border-color:#00acc1;}" +
         ".audio-call-users{-fx-background-color:transparent;}" +
-        ".audio-user-placeholder{-fx-background-color:#1E2A38;-fx-border-color:#3E6B8C;}" +
-        ".audio-user-label{-fx-text-fill:#E8EDF2;}" +
-        ".audio-call-controls{-fx-background-color:#1E2A38;}" +
-        ".audio-control-btn{-fx-background-color:#66BB6A;-fx-text-fill:#ffffff;}" +
-        ".audio-control-btn:hover{-fx-background-color:#57A05B;}" +
-        ".audio-end-call-btn{-fx-background-color:#EF5350;-fx-text-fill:#ffffff;}" +
-        ".audio-end-call-btn:hover{-fx-background-color:#C62828;}" +
-        ".audio-exit-btn{-fx-background-color:#546E7A;-fx-text-fill:#ffffff;}" +
-        ".audio-exit-btn:hover{-fx-background-color:#455A64;}" +
+        ".audio-user-placeholder{-fx-background-color:#1a1a1a;-fx-border-color:#555555;}" +
+        ".audio-user-label{-fx-text-fill:#ffffff;}" +
+        ".audio-call-controls{-fx-background-color:#1a1a1a;}" +
+        ".audio-control-btn{-fx-background-color:#00acc1;-fx-text-fill:#000000;}" +
+        ".audio-control-btn:hover{-fx-background-color:#00d4e0;}" +
+        ".audio-end-call-btn{-fx-background-color:#e53935;-fx-text-fill:#ffffff;}" +
+        ".audio-end-call-btn:hover{-fx-background-color:#c62828;}" +
+        ".audio-exit-btn{-fx-background-color:#4a4a4a;-fx-text-fill:#ffffff;}" +
+        ".audio-exit-btn:hover{-fx-background-color:#666666;}" +
         ".video-call-comp{-fx-background-color:rgba(0,0,0,0.85);}" +
-        ".video-call-container{-fx-background-color:#253545;-fx-border-color:#42A5F5;}" +
+        ".video-call-container{-fx-background-color:#2d2d2d;-fx-border-color:#e53935;}" +
         ".video-call-users{-fx-background-color:transparent;}" +
-        ".video-user-placeholder{-fx-background-color:#1E2A38;-fx-border-color:#3E6B8C;}" +
-        ".video-user-label{-fx-text-fill:#E8EDF2;}" +
-        ".video-call-controls{-fx-background-color:#1E2A38;}" +
-        ".video-control-btn{-fx-background-color:#42A5F5;-fx-text-fill:#ffffff;}" +
-        ".video-control-btn:hover{-fx-background-color:#1976D2;}" +
-        ".video-end-call-btn{-fx-background-color:#EF5350;-fx-text-fill:#ffffff;}" +
-        ".video-end-call-btn:hover{-fx-background-color:#C62828;}" +
-        ".video-exit-btn{-fx-background-color:#546E7A;-fx-text-fill:#ffffff;}" +
-        ".video-exit-btn:hover{-fx-background-color:#455A64;}" +
+        ".video-user-placeholder{-fx-background-color:#1a1a1a;-fx-border-color:#555555;}" +
+        ".video-user-label{-fx-text-fill:#ffffff;}" +
+        ".video-call-controls{-fx-background-color:#1a1a1a;}" +
+        ".video-control-btn{-fx-background-color:#e53935;-fx-text-fill:#ffffff;}" +
+        ".video-control-btn:hover{-fx-background-color:#c62828;}" +
+        ".video-end-call-btn{-fx-background-color:#e53935;-fx-text-fill:#ffffff;}" +
+        ".video-end-call-btn:hover{-fx-background-color:#c62828;}" +
+        ".video-exit-btn{-fx-background-color:#4a4a4a;-fx-text-fill:#ffffff;}" +
+        ".video-exit-btn:hover{-fx-background-color:#666666;}" +
         ".add-server-dark-bg{-fx-background-color:rgba(0,0,0,0.65);}" +
-        ".add-server-content{-fx-background-color:#253545;}" +
-        ".add-server-exit-circle{-fx-fill:#EF5350;-fx-stroke:transparent;}" +
+        ".add-server-content{-fx-background-color:#2d2d2d;}" +
+        ".add-server-exit-circle{-fx-fill:#e53935;-fx-stroke:transparent;}" +
         ".add-server-exit-label{-fx-text-fill:#ffffff;}" +
-        ".add-server-title{-fx-text-fill:#E8EDF2;}" +
-        ".add-server-label{-fx-text-fill:#8FA8BF;}" +
-        ".add-server-submit-btn{-fx-background-color:#2563EB;-fx-text-fill:#ffffff;}" +
-        ".add-server-submit-btn:hover{-fx-background-color:#1D4EBB;}" +
-        ".add-server-create-btn{-fx-background-color:#2D6A31;-fx-text-fill:#ffffff;}" +
-        ".add-server-create-btn:hover{-fx-background-color:#255829;}";
+        ".add-server-title{-fx-text-fill:#ffffff;}" +
+        ".add-server-label{-fx-text-fill:#aaaaaa;}" +
+        ".add-server-submit-btn{-fx-background-color:#00acc1;-fx-text-fill:#000000;}" +
+        ".add-server-submit-btn:hover{-fx-background-color:#00d4e0;}" +
+        ".add-server-create-btn{-fx-background-color:#e53935;-fx-text-fill:#ffffff;}" +
+        ".add-server-create-btn:hover{-fx-background-color:#c62828;}";
 
     private static final String LIGHT_THEME_CSS =
         ".root{-fx-base:#FFFFFF;-fx-background:#F0F4F8;-fx-control-inner-background:#FFFFFF;-fx-accent:#2563EB;}" +

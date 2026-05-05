@@ -91,28 +91,25 @@ public class AudioCallClient implements AudioCall, AutoCloseable {
 
         running = true;
 
-        this.consumeThread = new Thread(this::consumeAudio);
-        this.consumeThread.setDaemon(true);
-        this.consumeThread.start();
-
     }
+
+    //helper method
+    private void stopThread(Thread t) {
+        if (t == null || !t.isAlive()) return;
+            t.interrupt();
+        try {
+            t.join();
+        } catch (InterruptedException e) {
+            System.out.println("Interrupted while waiting for thread to stop: " + e.getMessage());
+        }
+    }
+
+
     @Override
     public void stop() {
         running = false;
-        this.consumeThread.interrupt();
-        try {
-            this.consumeThread.join();
-        } catch (InterruptedException e) {
-            this.consumeThread.interrupt();
-        }
-        if (supplyThread != null) {
-            this.supplyThread.interrupt();
-            try {
-                this.supplyThread.join();
-            } catch (InterruptedException e) {
-                this.supplyThread.interrupt();
-            }
-        }
+        stopThread(this.consumeThread);
+        stopThread(this.supplyThread);
 
         try {
             synchronized (mic) {
@@ -190,7 +187,6 @@ public class AudioCallClient implements AudioCall, AutoCloseable {
                     }
                 }
             } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
                 break;
             }
         }
@@ -217,6 +213,10 @@ public class AudioCallClient implements AudioCall, AutoCloseable {
                         System.out.println("Error setting up microphone pipeline: " + e.getMessage());
                     }
                     mic.start();
+                    stopThread(supplyThread);
+                    supplyThread = new Thread(this::audioSupplier);
+                    supplyThread.setDaemon(true);
+                    supplyThread.start();
                     System.out.println("Microphone set to: " + mixerInfo.getName());
                 } else {
                     System.out.println("Failed to set microphone: " + mixerInfo.getName());
@@ -226,17 +226,7 @@ public class AudioCallClient implements AudioCall, AutoCloseable {
             }
         }
 
-        if (supplyThread != null && supplyThread.isAlive()) {
-            supplyThread.interrupt();
-            try {
-                supplyThread.join();
-            } catch (InterruptedException e) {
-                supplyThread.interrupt();
-            }
-        }
-        supplyThread = new Thread(this::audioSupplier);
-        supplyThread.setDaemon(true);
-        supplyThread.start();
+        
     }
 
     @Override
@@ -261,7 +251,10 @@ public class AudioCallClient implements AudioCall, AutoCloseable {
                         System.out.println("Error setting up speaker pipeline: " + e.getMessage());
                     }
                     speaker.start();
-                    
+                    stopThread(this.consumeThread);
+                    this.consumeThread = new Thread(this::consumeAudio);
+                    this.consumeThread.setDaemon(true);
+                    this.consumeThread.start();
                     System.out.println("Speaker set to: " + mixerInfo.getName());
                 } else {
                     System.out.println("Failed to set speaker: " + mixerInfo.getName());
@@ -269,7 +262,7 @@ public class AudioCallClient implements AudioCall, AutoCloseable {
             } catch (LineUnavailableException e) {
                 System.out.println("Error setting speaker: " + e.getMessage());
             }  
-        }
+        }        
     }
 
    

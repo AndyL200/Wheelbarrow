@@ -1,21 +1,22 @@
 package Handlers;
 
-import javafx.scene.Scene;
-import javafx.stage.Stage;
-
-import java.io.FileInputStream;
-import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.function.Consumer;
 
-import Scenes.AppSceneTemplate;
-import Scenes.ChatScene;
+import Components.Helper.SceneEvent;
+import Scenes.*;
+import javafx.stage.Stage;
 
-public class SceneHandler {
+public class SceneHandler implements AppObserver {
+
+    private static SceneHandler instance;
+
     private AppSceneTemplate currentScene;
     private Stage stage;
+
     private static final String SERVER_LIST_PATH;
     static {
         Path p = Paths.get("").toAbsolutePath();
@@ -23,51 +24,75 @@ public class SceneHandler {
         SERVER_LIST_PATH = filePath.toString();
     }
 
-    public SceneHandler(Stage stage, Scene scene) {
-        this.stage = stage;
-        this.currentScene = (AppSceneTemplate) scene;
-        this.stage.setScene(scene);
-    }   
+    // Stored handler references for clean unsubscribe
+    private final Consumer<Object> gotoChatHandler     = _ -> switchScene(new ChatScene());
+    private final Consumer<Object> gotoSettingsHandler = _ -> switchScene(new SettingsScene());
+    private final Consumer<Object> gotoLoginHandler    = _ -> switchScene(new LoginScene());
 
-    public SceneHandler(Stage stage, AppSceneTemplate scene)  {
+    // ── Singleton ─────────────────────────────────────────────────────────────
+
+    private SceneHandler(Stage stage, AppSceneTemplate scene) {
         this.stage = stage;
         this.currentScene = scene;
         this.stage.setScene(scene);
-        if (scene instanceof ChatScene) {
-            handleChat();
-        }
+        register();
+        if (scene instanceof ChatScene) handleChat();
     }
+
+    /** Call once at app startup. Throws if called again. */
+    public static SceneHandler init(Stage stage, AppSceneTemplate scene) {
+        if (instance != null) {
+            throw new IllegalStateException("SceneHandler already initialized");
+        }
+        instance = new SceneHandler(stage, scene);
+        return instance;
+    }
+
+    /** Access the singleton after init. Throws if not yet initialized. */
+    public static SceneHandler get() {
+        if (instance == null) {
+            throw new IllegalStateException("SceneHandler not initialized — call init() first");
+        }
+        return instance;
+    }
+
+    // ---Trying an event bus and singleton pattern for now
+
+    @Override
+    public void register() {
+        EventBus.subscribe(SceneEvent.GOTO_CHAT,     gotoChatHandler);
+        EventBus.subscribe(SceneEvent.GOTO_SETTINGS, gotoSettingsHandler);
+        EventBus.subscribe(SceneEvent.GOTO_LOGIN,    gotoLoginHandler);
+    }
+
+    @Override
+    public void unregister() {
+        EventBus.unsubscribe(SceneEvent.GOTO_CHAT,     gotoChatHandler);
+        EventBus.unsubscribe(SceneEvent.GOTO_SETTINGS, gotoSettingsHandler);
+        EventBus.unsubscribe(SceneEvent.GOTO_LOGIN,    gotoLoginHandler);
+    }
+
+    // ── Scene switching ───────────────────────────────────────────────────────
 
     public void switchScene(AppSceneTemplate newScene) {
         this.currentScene = newScene;
         this.stage.setScene(newScene);
-        switchScene(newScene);
-        if (newScene instanceof ChatScene) {
-            handleChat();
-        }
+        if (newScene instanceof ChatScene) handleChat();
     }
 
-
-    private void switchScene(Scene scene) {
-        this.stage.setScene(scene);
-    }
+    // ── Handlers ──────────────────────────────────────────────────────────────
 
     private void handleChat() {
-        if (!(currentScene instanceof ChatScene)) {
-            //must be a ChatScene
-            return;
-        }
-
-        ChatScene chat = (ChatScene) currentScene;
+        if (!(currentScene instanceof ChatScene chat)) return;
         try {
             String json = Files.readString(Paths.get(SERVER_LIST_PATH));
             chat.initServerList(json);
-        }
-        catch (IOException e) {
+        } catch (IOException e) {
             System.err.println("Error reading server list: " + e.getMessage());
-            e.printStackTrace();
         }
+    }
 
-        
+    public AppSceneTemplate getCurrentScene() {
+        return currentScene;
     }
 }

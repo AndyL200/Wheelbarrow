@@ -13,43 +13,43 @@ import java.security.SecureRandom;
 import java.security.spec.InvalidKeySpecException;
 import java.util.Base64;
 import java.util.EnumSet;
+import java.util.Random;
 import java.util.Set;
+import java.util.concurrent.ThreadLocalRandom;
+import java.util.prefs.BackingStoreException;
+import java.util.prefs.Preferences;
 
 import javax.crypto.SecretKey;
 import Network.Security;
 
 /**
- * Manages the local user profile stored in {@code ~/.wheelbarrow/profile}.
+ * Manages the local user profile stored in the system preferences registry.
  *
  * Like a Linux user account, the profile defines who the user is on this
  * machine. There is no centralized server involved – it is purely a local
  * identity used as the display name throughout the application.
  *
- * File format:
- * <ul>
- *   <li>Without password: {@code username}</li>
- *   <li>With password:    {@code username:salt:hash}</li>
- * </ul>
+ * Stored under the "wheelbarrow" preferences node:
+ * - username: the display name
+ * - salt: Base64-encoded random salt (only if password-protected)
+ * - hash: Base64-encoded PBKDF2 hash (only if password-protected)
  */
+
+
 public class LocalProfile {
     //probably better to have this on a system register no?
-    private static final Path PROFILE_FILE =
-            Paths.get(System.getProperty("user.home"), ".wheelbarrow", "profile");
+    static Preferences prefs = Preferences.userRoot().node("wheelbarrow");
 
     /** Returns {@code true} if a local profile exists on disk. */
     public static boolean hasProfile() {
-        return Files.exists(PROFILE_FILE);
+        return prefs.get("username", null) != null;
     }
 
     /** Returns {@code true} if the stored profile is password-protected. */
     public static boolean isPasswordProtected() {
         if (!hasProfile()) return false;
-        try (BufferedReader reader = Files.newBufferedReader(PROFILE_FILE)) {
-            String line = reader.readLine();
-            return line != null && line.contains(":");
-        } catch (IOException e) {
-            return false;
-        }
+        String hash = prefs.get("hash", null);
+        return hash != null && !hash.isEmpty();
     }
 
     /**
@@ -58,15 +58,23 @@ public class LocalProfile {
      *
      * @throws IllegalArgumentException if username is blank
      */
-    public static void create(String username) throws IOException {
+    public static void create(String username) {
         if (username == null || username.isBlank()) {
             throw new IllegalArgumentException("Username must not be blank");
         }
-        Files.createDirectories(PROFILE_FILE.getParent());
-        try (BufferedWriter writer = Files.newBufferedWriter(PROFILE_FILE)) {
-            writer.write(username.strip());
+        String hashtag = "#";
+        for(int i = 0; i < 4; i++) {
+            hashtag += ThreadLocalRandom.current().nextInt(0, 10);
         }
-        applyOwnerOnlyPermissions(PROFILE_FILE);
+        prefs.put("username", username.strip() + hashtag);
+        prefs.remove("salt");
+        prefs.remove("hash");
+
+        try {
+            prefs.flush();
+        } catch (BackingStoreException e) {
+            System.out.println("Warning: could not flush preferences: " + e.getMessage());
+}
     }
 
     /**
@@ -78,7 +86,7 @@ public class LocalProfile {
      * @throws IllegalArgumentException if username is blank
      */
     public static void create(String username, String password)
-            throws IOException, NoSuchAlgorithmException, InvalidKeySpecException {
+            throws IllegalArgumentException, NoSuchAlgorithmException, InvalidKeySpecException {
         if (username == null || username.isBlank()) {
             throw new IllegalArgumentException("Username must not be blank");
         }
@@ -91,12 +99,27 @@ public class LocalProfile {
         String salt = Base64.getEncoder().encodeToString(saltBytes);
         SecretKey key = Security.getKeyFromPassword(password, salt);
         String hash = Base64.getEncoder().encodeToString(key.getEncoded());
-
-        Files.createDirectories(PROFILE_FILE.getParent());
-        try (BufferedWriter writer = Files.newBufferedWriter(PROFILE_FILE)) {
-            writer.write(username.strip() + ":" + salt + ":" + hash);
+        
+        if (hash.length() >= 4) {
+            int r = ThreadLocalRandom.current().nextInt(0, hash.length()-4);
+            String partialHash = hash.substring(r, r+4);
+            prefs.put("username", username.strip() + partialHash);
         }
-        applyOwnerOnlyPermissions(PROFILE_FILE);
+        else {
+            String hashtag = "#";
+            for(int i = 0; i < 4; i++) {
+                hashtag += ThreadLocalRandom.current().nextInt(0, 10);
+            }
+            prefs.put("username", username.strip() + hashtag + "mabh");
+        }
+        prefs.put("salt", salt);
+        prefs.put("hash", hash);
+
+        try {
+            prefs.flush();
+        } catch (BackingStoreException e) {
+            System.out.println("Warning: could not flush preferences: " + e.getMessage());
+        }
     }
 
     /**
@@ -104,13 +127,7 @@ public class LocalProfile {
      */
     public static String getUsername() {
         if (!hasProfile()) return null;
-        try (BufferedReader reader = Files.newBufferedReader(PROFILE_FILE)) {
-            String line = reader.readLine();
-            if (line == null) return null;
-            return line.contains(":") ? line.split(":", 2)[0] : line;
-        } catch (IOException e) {
-            return null;
-        }
+        return prefs.get("username", null);
     }
 
     /**
@@ -119,41 +136,47 @@ public class LocalProfile {
      * password matches the stored hash. Uses constant-time comparison.
      */
     public static boolean checkPassword(String password) {
-        if (!isPasswordProtected()) return true;
-        try (BufferedReader reader = Files.newBufferedReader(PROFILE_FILE)) {
-            String line = reader.readLine();
-            if (line == null) return false;
-            String[] parts = line.split(":", 3);
-            if (parts.length != 3) return false;
-            String salt = parts[1];
-            String storedHash = parts[2];
-            SecretKey key = Security.getKeyFromPassword(password, salt);
-            byte[] computed = key.getEncoded();
-            byte[] stored = Base64.getDecoder().decode(storedHash);
-            return MessageDigest.isEqual(computed, stored);
-        } catch (Exception e) {
-            System.out.println("Error checking password: " + e.getMessage());
-            return false;
-        }
+        if (!isPasswordProtected()) {return true;}
+            String salt = prefs.get("salt", null);
+            String storedHash = prefs.get("hash", null);
+            try {
+                SecretKey key = Security.getKeyFromPassword(password, salt);
+                byte[] computed = key.getEncoded();
+                byte[] stored = Base64.getDecoder().decode(storedHash);
+                return MessageDigest.isEqual(computed, stored);
+            } catch (Exception e) {
+                System.out.println("Error checking password: " + e.getMessage());
+                return false;
+            }
     }
 
     /**
      * Deletes the local profile. Used when the user wants to switch accounts.
      */
-    public static void delete() throws IOException {
-        Files.deleteIfExists(PROFILE_FILE);
-    }
+    public static void delete() {
+        prefs.remove("username");
+        prefs.remove("salt");
+        prefs.remove("hash");
 
-    private static void applyOwnerOnlyPermissions(Path path) {
         try {
-            Set<PosixFilePermission> perms = EnumSet.of(
-                    PosixFilePermission.OWNER_READ,
-                    PosixFilePermission.OWNER_WRITE);
-            Files.setPosixFilePermissions(path, perms);
-        } catch (UnsupportedOperationException ignored) {
-            // Non-POSIX filesystem (e.g., Windows NTFS) – skip silently
-        } catch (IOException e) {
-            System.out.println("Warning: could not set profile file permissions: " + e.getMessage());
+            prefs.flush();
+        } catch (BackingStoreException e) {
+            System.out.println("Warning: could not flush preferences: " + e.getMessage());
         }
     }
+
+
+    //Moving away from a file
+    // private static void applyOwnerOnlyPermissions(Path path) {
+    //     try {
+    //         Set<PosixFilePermission> perms = EnumSet.of(
+    //                 PosixFilePermission.OWNER_READ,
+    //                 PosixFilePermission.OWNER_WRITE);
+    //         Files.setPosixFilePermissions(path, perms);
+    //     } catch (UnsupportedOperationException ignored) {
+    //         // Non-POSIX filesystem (e.g., Windows NTFS) – skip silently
+    //     } catch (IOException e) {
+    //         System.out.println("Warning: could not set profile file permissions: " + e.getMessage());
+    //     }
+    // }
 }
