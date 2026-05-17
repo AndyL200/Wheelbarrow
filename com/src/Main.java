@@ -1,4 +1,8 @@
+import java.util.prefs.Preferences;
+
+import Handlers.AppObserver;
 import Handlers.SceneHandler;
+import Handlers.ThemeManager;
 import javafx.application.Application;
 import javafx.stage.Stage;
 import Scenes.ChatScene;
@@ -10,6 +14,11 @@ public class Main extends Application {
     public static void main(String[] args) {
         
         //grab server cache from disk
+        Preferences pref = Preferences.userRoot().node("wheelbarrow");
+        pref.putBoolean("mode",true);
+        pref.putBoolean("concurrency", true);
+        AppObserver.getInstance(); // initialize the app observer singleton
+        ThemeManager.getInstance(); // initialize the theme manager singleton
         Application.launch(args);
     }
 

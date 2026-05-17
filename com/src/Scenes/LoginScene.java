@@ -1,38 +1,57 @@
 package Scenes;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.function.Consumer;
 
+import com.oracle.javafx.scenebuilder.kit.editor.EditorPlatform.Theme;
+
 import Components.Config.LocalProfile;
+import Components.Config.User;
+import Components.Helper.SceneType;
+import Handlers.AppObserver;
 import Handlers.ThemeManager;
 import javafx.geometry.Pos;
 import javafx.scene.control.Button;
 import javafx.scene.control.Hyperlink;
 import javafx.scene.control.Label;
 import javafx.scene.control.PasswordField;
+import javafx.scene.control.ScrollPane;
 import javafx.scene.control.TextField;
+import javafx.scene.image.Image;
+import javafx.scene.image.ImageView;
+import javafx.scene.layout.HBox;
+import javafx.scene.layout.Priority;
 import javafx.scene.layout.StackPane;
 import javafx.scene.layout.VBox;
+import javafx.scene.shape.Circle;
 
 /**
  * JavaFX scene shown on application startup.
  *
- * If a local profile already exists the user is greeted by name and asked
- * only for a password (if the account is password-protected). If no profile
- * exists the user can choose a username and an optional password to create
- * their local account – like setting up a Linux user for the first time.
+ * Displays a horizontal list of all existing users from LocalProfile.listUsers().
+ * Users can select a profile to sign in or create a new account.
+ *
+ * Layout proportions (4:5:3:2):
+ * - Title (40%)
+ * - User image (50%)
+ * - User username (30%)
+ * - SignIn/CreateView (20%)
  *
  * On successful sign-in or account creation the {@code onLogin} callback
  * is invoked with the chosen username.
  */
-public class LoginScene extends AppSceneTemplate {
+public class LoginScene extends AppScene {
 
     private Consumer<String> onLogin;
     private StackPane root;
+    private Label usernameLabel;
+    private ImageView userImageView;
+    private VBox formContainer;
+    private Label errorLabel;
 
     public LoginScene(int width, int height) {
         super(width, height);
-        initStyles();
         this.root = new StackPane();
         buildUI();
         this.setRoot(this.root);
@@ -41,7 +60,6 @@ public class LoginScene extends AppSceneTemplate {
     //adapt to existing size
     public LoginScene() {
         super();
-        initStyles();
         this.root = new StackPane();
         buildUI();
         this.root.setMaxHeight(Double.MAX_VALUE);
@@ -52,111 +70,243 @@ public class LoginScene extends AppSceneTemplate {
    
     }
 
-    private void initStyles() {
-        try {
-            ThemeManager.getInstance().registerScene(this);
-            ThemeManager.getInstance().addSceneCss(this, "/Styles/loginStyles.css", ThemeManager.LOGIN_CSS);
-        } catch (Exception e) {
-            System.err.println("Failed to load login styles: " + e.getMessage());
-        }
-    }
-
     private void buildUI() {
         this.root.getStyleClass().add("login-root");
         this.root.setMaxSize(Double.MAX_VALUE, Double.MAX_VALUE);
 
-        // App title shown above the card
+        // Main vertical layout with proportional spacing
+        VBox mainLayout = new VBox(0);
+        mainLayout.setStyle("-fx-spacing: 0;");
+        mainLayout.setMaxSize(Double.MAX_VALUE, Double.MAX_VALUE);
+
+        // 1. Title section (4/14 ≈ 28.6%)
         Label appTitle = new Label("Wheelbarrow");
         appTitle.getStyleClass().add("login-app-title");
+        VBox titleContainer = new VBox(appTitle);
+        titleContainer.setAlignment(Pos.CENTER);
+        titleContainer.setMaxSize(Double.MAX_VALUE, Double.MAX_VALUE);
+        VBox.setVgrow(titleContainer, Priority.NEVER);
+        titleContainer.setStyle("-fx-min-height: 100; -fx-pref-height: 100;"); // 4 parts = ~100px example
 
-        // Error label (hidden until needed)
-        Label errorLabel = new Label("");
+        // 2. Horizontal user list
+        HBox userListContainer = buildUserList();
+        VBox.setVgrow(userListContainer, Priority.NEVER);
+        userListContainer.setStyle("-fx-min-height: 150; -fx-pref-height: 150; -fx-padding: 10;");
+
+        // 3. User image section (5/14 ≈ 35.7%)
+        userImageView = new ImageView();
+        userImageView.setFitHeight(150);
+        userImageView.setFitWidth(150);
+        userImageView.setPreserveRatio(true);
+        Circle clip = new Circle(75);
+        userImageView.setClip(clip);
+        VBox imageContainer = new VBox(userImageView);
+        imageContainer.setAlignment(Pos.CENTER);
+        imageContainer.setStyle("-fx-pref-height: 150;");
+        VBox.setVgrow(imageContainer, Priority.NEVER);
+
+        // 4. Username section (3/14 ≈ 21.4%)
+        usernameLabel = new Label("Select a user");
+        usernameLabel.getStyleClass().add("login-welcome");
+        usernameLabel.setWrapText(true);
+        VBox usernameContainer = new VBox(usernameLabel);
+        usernameContainer.setAlignment(Pos.CENTER);
+        usernameContainer.setStyle("-fx-pref-height: 90;");
+        VBox.setVgrow(usernameContainer, Priority.NEVER);
+
+        // 5. Error label (global)
+        errorLabel = new Label("");
         errorLabel.getStyleClass().add("login-error");
         errorLabel.setVisible(false);
         errorLabel.setManaged(false);
 
-        // Card that holds the form
-        VBox card = new VBox(14);
-        card.getStyleClass().add("login-card");
-        card.setMaxWidth(360);
-        card.setAlignment(Pos.CENTER_LEFT);
+        // 6. Form container (SignIn/CreateView) (2/14 ≈ 14.3%)
+        formContainer = new VBox(14);
+        formContainer.setStyle("-fx-pref-height: 100;");
+        formContainer.getChildren().add(errorLabel);
+        VBox.setVgrow(formContainer, Priority.NEVER);
 
-        if (LocalProfile.hasProfile()) {
-            buildSignInView(card, errorLabel);
-        } else {
-            buildCreateView(card, errorLabel);
-        }
+        // Assemble main layout
+        mainLayout.getChildren().addAll(
+            titleContainer,
+            userListContainer,
+            imageContainer,
+            usernameContainer,
+            formContainer
+        );
 
-        card.getChildren().add(errorLabel);
-
-        // Centre the title + card vertically and horizontally
-        VBox wrapper = new VBox(20);
-        wrapper.setAlignment(Pos.CENTER);
-        wrapper.setMaxWidth(360);
-        wrapper.getChildren().addAll(appTitle, card);
-
-        StackPane.setAlignment(wrapper, Pos.CENTER);
-        this.root.getChildren().add(wrapper);
+        StackPane.setAlignment(mainLayout, Pos.CENTER);
+        this.root.getChildren().add(mainLayout);
     }
 
-    /** Sign-in view: shown when a local profile already exists. */
-    private void buildSignInView(VBox card, Label errorLabel) {
-        String storedUsername = LocalProfile.getUsername();
-        boolean needsPassword = LocalProfile.isPasswordProtected();
+    /** Build horizontal list of users from LocalProfile.listUsers() */
+    private HBox buildUserList() {
+        HBox userList = new HBox(15);
+        userList.setAlignment(Pos.CENTER);
+        userList.setStyle("-fx-padding: 10;");
 
-        Label welcomeLabel = new Label("Welcome back, " + storedUsername + "!");
-        welcomeLabel.getStyleClass().add("login-welcome");
-        welcomeLabel.setWrapText(true);
+        List<User> users = LocalProfile.listUsers();
+        
+        for (User user : users) {
+            VBox userItem = createUserPortrait(user);
+            userList.getChildren().add(userItem);
+        }
 
-        Label hint = new Label(needsPassword
-                ? "Enter your password to continue."
-                : "Click Sign In to continue.");
+        // "Create new account" button
+        VBox createNewItem = createNewAccountButton();
+        userList.getChildren().add(createNewItem);
+
+        ScrollPane scroll = new ScrollPane(userList);
+        scroll.setFitToHeight(true);
+        scroll.setStyle("-fx-control-inner-background: transparent;");
+        HBox.setHgrow(scroll, Priority.ALWAYS);
+
+        HBox container = new HBox(scroll);
+        HBox.setHgrow(container, Priority.ALWAYS);
+        return container;
+    }
+
+    /** Create a clickable user portrait card */
+    private VBox createUserPortrait(User user) {
+        VBox portrait = new VBox(8);
+        portrait.setPrefWidth(100);
+        portrait.setAlignment(Pos.CENTER);
+        portrait.getStyleClass().add("user-portrait-card");
+        portrait.setStyle("-fx-border-color: #ccc; -fx-border-radius: 8; -fx-padding: 10; -fx-cursor: hand;");
+
+        // User image
+        ImageView img = new ImageView();
+        img.setFitHeight(80);
+        img.setFitWidth(80);
+        img.setPreserveRatio(true);
+        String imgUrl = user.getImgUrl();
+        if (imgUrl != null && !imgUrl.isEmpty()) {
+            try {
+                Image userImage = new Image(imgUrl);
+                img.setImage(userImage);
+            } catch (Exception e) {
+                img.setStyle("-fx-text-fill: #999;");
+            }
+        } else {
+            img.setStyle("-fx-text-fill: #999;");
+        }
+        Circle clip = new Circle(40);
+        img.setClip(clip);
+
+        // Username label
+        Label nameLabel = new Label(user.getUsername());
+        nameLabel.setStyle("-fx-font-size: 12; -fx-font-weight: bold; -fx-text-alignment: center;");
+        nameLabel.setWrapText(true);
+
+        portrait.getChildren().addAll(img, nameLabel);
+
+        // Click to select this user
+        portrait.setOnMouseClicked(e -> selectUser(user));
+
+        return portrait;
+    }
+
+    /** Create "Create new account" button */
+    private VBox createNewAccountButton() {
+        VBox newAccountItem = new VBox();
+        newAccountItem.setPrefWidth(100);
+        newAccountItem.setAlignment(Pos.CENTER);
+        newAccountItem.getStyleClass().add("user-portrait-card");
+        newAccountItem.setStyle("-fx-border-color: #ccc; -fx-border-radius: 8; -fx-padding: 10; -fx-cursor: hand;");
+
+        Label plusLabel = new Label("+");
+        plusLabel.setStyle("-fx-font-size: 40; -fx-text-fill: #999;");
+
+        Label createLabel = new Label("New Account");
+        createLabel.setStyle("-fx-font-size: 12; -fx-text-alignment: center;");
+
+        newAccountItem.getChildren().addAll(plusLabel, createLabel);
+
+        newAccountItem.setOnMouseClicked(e -> selectUser(null));
+
+        return newAccountItem;
+    }
+
+    /** Called when a user is selected or when creating a new account */
+    private void selectUser(User user) {
+        formContainer.getChildren().clear();
+        errorLabel.setVisible(false);
+        formContainer.getChildren().add(errorLabel);
+
+        if (user != null) {
+            // Update display
+            usernameLabel.setText("Welcome back, " + user.getUsername() + "!");
+            String imgUrl = user.getImgUrl();
+            if (imgUrl != null && !imgUrl.isEmpty()) {
+                try {
+                    Image userImage = new Image(imgUrl);
+                    userImageView.setImage(userImage);
+                } catch (Exception e) {
+                    userImageView.setImage(null);
+                }
+            }
+
+            // Build sign-in form for this user
+            buildSignInView(formContainer, user);
+        } else {
+            // Create new account
+            usernameLabel.setText("Create Your Account");
+            userImageView.setImage(null);
+            buildCreateView(formContainer);
+        }
+    }
+
+    /** Sign-in view: shown when a user is selected. */
+    private void buildSignInView(VBox container, User user) {
+        String storedUsername = user.getUsername();
+
+        Label hint = new Label("Enter your password to continue.");
         hint.getStyleClass().add("login-hint");
 
         PasswordField passwordField = new PasswordField();
         passwordField.setPromptText("Password");
         passwordField.getStyleClass().add("login-field");
-        passwordField.setVisible(needsPassword);
-        passwordField.setManaged(needsPassword);
 
         Button signInBtn = new Button("Sign In");
         signInBtn.getStyleClass().add("login-btn");
         signInBtn.setMaxWidth(Double.MAX_VALUE);
 
         Runnable doSignIn = () -> {
-            if (needsPassword) {
-                if (passwordField.getText().isEmpty()) {
-                    showError(errorLabel, "Please enter your password.");
-                    return;
-                }
-                if (!LocalProfile.checkPassword(passwordField.getText())) {
-                    showError(errorLabel, "Incorrect password.");
-                    return;
-                }
+            if (passwordField.getText().isEmpty() && LocalProfile.isPasswordProtected(storedUsername)) {
+                showError(errorLabel, "Please enter your password.");
+                return;
             }
-            if (onLogin != null) onLogin.accept(storedUsername);
+            int login = AppObserver.getInstance().getLocalProfile().login(storedUsername, passwordField.getText());
+            if (login == -1) {
+                showError(errorLabel, "No users found.");
+                return;
+            }
+            else if (login == 1) {
+                showError(errorLabel, "Username not found.");
+                return;
+            }
+            else if (login == 2) {
+                showError(errorLabel, "Incorrect password.");
+                return;
+            }
+
+            if (onLogin != null && login == 0) onLogin.accept(storedUsername);
         };
 
         signInBtn.setOnAction(e -> doSignIn.run());
-        // Allow Enter key in the password field to trigger sign-in
         passwordField.setOnAction(e -> doSignIn.run());
 
-        Hyperlink switchUser = new Hyperlink("Not you? Switch user");
+        Hyperlink switchUser = new Hyperlink("Choose different user");
         switchUser.getStyleClass().add("login-link");
         switchUser.setOnAction(e -> {
-            LocalProfile.delete();
-            root.getChildren().clear();
-            buildUI();
+            selectUser(null);
         });
 
-        card.getChildren().addAll(welcomeLabel, hint, passwordField, signInBtn, switchUser);
+        container.getChildren().addAll(hint, passwordField, signInBtn, switchUser);
     }
 
-    /** Create-account view: shown when no local profile exists yet. */
-    private void buildCreateView(VBox card, Label errorLabel) {
-        Label titleLabel = new Label("Create your account");
-        titleLabel.getStyleClass().add("login-title");
-
+    /** Create-account view: shown when creating a new profile. */
+    private void buildCreateView(VBox container) {
         Label subLabel = new Label("Choose the name others will see when you chat.");
         subLabel.getStyleClass().add("login-hint");
         subLabel.setWrapText(true);
@@ -189,21 +339,22 @@ public class LoginScene extends AppSceneTemplate {
                 } else {
                     LocalProfile.create(username, password);
                 }
-                if (onLogin != null) onLogin.accept(username);
+                if (onLogin != null) {
+                    onLogin.accept(username);
+                }  
             } catch (Exception ex) {
                 showError(errorLabel, "Could not save profile: " + ex.getMessage());
             }
         };
 
         createBtn.setOnAction(e -> doCreate.run());
-        // Allow Enter in the username field to submit (if no password intended)
         usernameField.setOnAction(e -> {
             if (passwordField.getText().isEmpty()) doCreate.run();
             else passwordField.requestFocus();
         });
         passwordField.setOnAction(e -> doCreate.run());
 
-        card.getChildren().addAll(titleLabel, subLabel, usernameField, pwLabel, passwordField, createBtn);
+        container.getChildren().addAll(subLabel, usernameField, pwLabel, passwordField, createBtn);
     }
 
     private void showError(Label label, String msg) {
@@ -215,5 +366,9 @@ public class LoginScene extends AppSceneTemplate {
     /** Called with the logged-in username when login or account creation succeeds. */
     public void setOnLogin(Consumer<String> onLogin) {
         this.onLogin = onLogin;
+    }
+
+    public SceneType getSceneType() {
+        return SceneType.LOGIN;
     }
 }

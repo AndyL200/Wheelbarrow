@@ -10,11 +10,11 @@ import Components.Helper.SceneEvent;
 import Scenes.*;
 import javafx.stage.Stage;
 
-public class SceneHandler implements AppObserver {
+public class SceneHandler {
 
-    private static SceneHandler instance;
+    private static SceneHandler INSTANCE;
 
-    private AppSceneTemplate currentScene;
+    private AppScene currentScene;
     private Stage stage;
 
     private static final String SERVER_LIST_PATH;
@@ -24,60 +24,41 @@ public class SceneHandler implements AppObserver {
         SERVER_LIST_PATH = filePath.toString();
     }
 
-    // Stored handler references for clean unsubscribe
-    private final Consumer<Object> gotoChatHandler     = _ -> switchScene(new ChatScene());
-    private final Consumer<Object> gotoSettingsHandler = _ -> switchScene(new SettingsScene());
-    private final Consumer<Object> gotoLoginHandler    = _ -> switchScene(new LoginScene());
-
     // ── Singleton ─────────────────────────────────────────────────────────────
 
-    private SceneHandler(Stage stage, AppSceneTemplate scene) {
+    private SceneHandler(Stage stage, AppScene scene) {
         this.stage = stage;
         this.currentScene = scene;
+        ThemeManager.getInstance().applySceneTheme(scene);
         this.stage.setScene(scene);
-        register();
         if (scene instanceof ChatScene) handleChat();
     }
 
     /** Call once at app startup. Throws if called again. */
-    public static SceneHandler init(Stage stage, AppSceneTemplate scene) {
-        if (instance != null) {
+    public static SceneHandler init(Stage stage, AppScene scene) {
+        if (INSTANCE != null) {
             throw new IllegalStateException("SceneHandler already initialized");
         }
-        instance = new SceneHandler(stage, scene);
-        return instance;
+        INSTANCE = new SceneHandler(stage, scene);
+        return INSTANCE;
     }
 
     /** Access the singleton after init. Throws if not yet initialized. */
     public static SceneHandler get() {
-        if (instance == null) {
+        if (INSTANCE == null) {
             throw new IllegalStateException("SceneHandler not initialized — call init() first");
         }
-        return instance;
+        return INSTANCE;
     }
-
-    // ---Trying an event bus and singleton pattern for now
-
-    @Override
-    public void register() {
-        EventBus.subscribe(SceneEvent.GOTO_CHAT,     gotoChatHandler);
-        EventBus.subscribe(SceneEvent.GOTO_SETTINGS, gotoSettingsHandler);
-        EventBus.subscribe(SceneEvent.GOTO_LOGIN,    gotoLoginHandler);
-    }
-
-    @Override
-    public void unregister() {
-        EventBus.unsubscribe(SceneEvent.GOTO_CHAT,     gotoChatHandler);
-        EventBus.unsubscribe(SceneEvent.GOTO_SETTINGS, gotoSettingsHandler);
-        EventBus.unsubscribe(SceneEvent.GOTO_LOGIN,    gotoLoginHandler);
-    }
-
     // ── Scene switching ───────────────────────────────────────────────────────
 
-    public void switchScene(AppSceneTemplate newScene) {
+    public void switchScene(AppScene newScene) {
         this.currentScene = newScene;
+        ThemeManager.getInstance().applySceneTheme(newScene);
         this.stage.setScene(newScene);
-        if (newScene instanceof ChatScene) handleChat();
+        if (newScene instanceof ChatScene) {
+            handleChat();
+        }
     }
 
     // ── Handlers ──────────────────────────────────────────────────────────────
@@ -92,7 +73,7 @@ public class SceneHandler implements AppObserver {
         }
     }
 
-    public AppSceneTemplate getCurrentScene() {
+    public AppScene getCurrentScene() {
         return currentScene;
     }
 }

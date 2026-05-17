@@ -13,13 +13,15 @@ import Components.ChatComp;
 import Components.ServerEntry;
 import Components.ServerOverlay;
 import Components.Sidebar;
+import Components.Helper.SceneType;
 import Components.Helper.ServerList;
+import Handlers.AppObserver;
 import Handlers.SceneHandler;
 import Handlers.ThemeManager;
+import Network.ChatObj;
 import Network.Client;
 import Network.Server;
 import Network.ServerInfo;
-import Network.User;
 import javafx.scene.control.Button;
 import javafx.scene.image.Image;
 import javafx.scene.layout.HBox;
@@ -53,18 +55,16 @@ class SidebarContainer extends VBox {
     }
 }
 
-public class ChatScene extends AppSceneTemplate {
+public class ChatScene extends AppScene {
     private SidebarContainer sideContain;
 
     private ChatComp chatComp;
     private ServerList serverList;
     private StackPane root;
-    private User u = null;
     private HBox hbox;
 
     public ChatScene() {
         super();
-        ThemeManager.getInstance().registerScene(this);
         this.root = new StackPane();
         this.hbox = new HBox();
 
@@ -96,7 +96,6 @@ public class ChatScene extends AppSceneTemplate {
     }
     public ChatScene(int width, int height) {
         super(width, height);
-        ThemeManager.getInstance().registerScene(this);
 
         this.root = new StackPane();
         this.hbox = new HBox();
@@ -132,21 +131,19 @@ public class ChatScene extends AppSceneTemplate {
     }
 
     private void exchangeChatComp() {
-        if (u == null) {
+        ChatObj chat = AppObserver.getInstance().getCurrentChat();
+        if (chat == null) {
             return;
         }
-        if (this.chatComp != null && u == this.chatComp.getUser()) {
-            //do nothing
-            return;
-        }
+        
         //Does anything need to be done to the old chatComp?
         if (this.chatComp != null) {
             int chatCompIndex = this.hbox.getChildren().indexOf(this.chatComp);
             this.hbox.getChildren().remove(this.chatComp);
-            this.chatComp = new ChatComp(u);
+            this.chatComp = new ChatComp();
             this.hbox.getChildren().add(chatCompIndex, this.chatComp);
         } else {
-            this.chatComp = new ChatComp(u);
+            this.chatComp = new ChatComp();
             this.hbox.getChildren().add(this.chatComp);
         }
     }
@@ -155,32 +152,29 @@ public class ChatScene extends AppSceneTemplate {
         ServerOverlay overlay = new ServerOverlay();
         overlay.setOnClose(() -> this.root.getChildren().remove(overlay));
         overlay.setOnServerFound(this::addServerToSidebar);
-        overlay.setOnHostServer(this::createServer);
+        overlay.setOnHostServer(this::createChatServer);
         this.root.getChildren().add(overlay);
     }
 
-    public void createServer() {
+    public void createChatServer() {
         //Grab local IP and port directly from the running server instance
-        Server server = new Server();    
+        AppObserver.getInstance().openIncomingChat();
+        Server server = (Server) AppObserver.getInstance().getCurrentChat();
         if (server.socket == null) {
             System.err.println("Server failed to start, socket is null");
             return;
         }
         int port = server.socket.getLocalPort(); //default port
         addServerToSidebar(new Pair<>(server.getAddress(), port));
-        setUser(server);
+        exchangeChatComp();
     }
     public void enterServer(ServerInfo info) {
         if (info == null) {
             System.err.println("From enterServer(), ServerInfo is null, cannot enter server");
             return;
         }
-        if (u != null &&info.SERVER_ADDRESS.equals(u.getAddress())) {
-            //entering a server that you are already in
-            return;
-        }
-        Client c = new Client(info.SERVER_ADDRESS, info.SERVER_PORT);
-        setUser(c);
+        AppObserver.getInstance().openOutgoingChat(info.SERVER_ADDRESS, info.SERVER_PORT);
+        exchangeChatComp();
         //add all messages in the message queue
         info.messageQueue.ifPresent((mqueue) -> mqueue.forEach((msg) -> this.chatComp.addMessage(msg)));
     }
@@ -236,8 +230,8 @@ public class ChatScene extends AppSceneTemplate {
         loadServers();
     }
 
-    public void setUser(User user) {
-        this.u = user;
-        exchangeChatComp();
+    @Override
+    public SceneType getSceneType() {
+        return SceneType.CHAT;
     }
 }

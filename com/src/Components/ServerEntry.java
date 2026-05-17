@@ -9,6 +9,7 @@ public class ServerEntry extends StackPane {
     ServerInfo info;
     public ServerEntry(ServerInfo info, Image icon) {
         this.info = info;
+        this.getStyleClass().add("server-entry");
         Circle iconCircle = new Circle(20);
         iconCircle.setFill(new javafx.scene.paint.ImagePattern(icon));
         
@@ -19,6 +20,7 @@ public class ServerEntry extends StackPane {
 
     public ServerEntry(ServerInfo info) {
         this.info = info;
+        this.getStyleClass().add("server-entry");
         Circle iconCircle = new Circle(20);
         iconCircle.setFill(new javafx.scene.paint.Color(0.5, 0.5, 0.5, 1.0));
         

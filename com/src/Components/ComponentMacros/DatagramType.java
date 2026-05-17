@@ -2,7 +2,8 @@ package Components.ComponentMacros;
 
 public enum DatagramType {
     AUDIO(1),
-    VIDEO(2);
+    VIDEO(2),
+    UNKNOWN(99);
 
     private final int value;
 
@@ -14,3 +15,5 @@ public enum DatagramType {
         return value;
     }
 }
+
+

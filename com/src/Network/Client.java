@@ -22,7 +22,7 @@ import Components.ComponentMacros.MessageType;
 
 import Components.Message;
 
-public class Client implements User {
+public class Client extends ChatObj implements AutoCloseable {
     private volatile boolean running = true;
     private Socket SERVER;
     public String SERVER_HOSTNAME = ""; 
@@ -250,6 +250,18 @@ public class Client implements User {
     @Override
     public ServerInfo getInfo() {
         return info;
+    }
+
+    @Override
+    public void close() {
+        running = false;
+        try {
+            if (SERVER != null && !SERVER.isClosed()) {
+                SERVER.close();
+            }
+        } catch (IOException e) {
+            System.out.println("Error closing client socket: " + e.getMessage());
+        }
     }
 
 }

@@ -2,15 +2,12 @@ package Network;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
-import java.io.File;
 import java.io.FileOutputStream;
-import java.io.InputStream;
 import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
 import java.io.Serializable;
 import java.net.InetAddress;
 import java.net.Socket;
-import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.Arrays;
@@ -18,7 +15,7 @@ import java.util.List;
 
 import Components.Message;
 import Components.Config.Settings;
-import javafx.scene.image.Image;
+import Components.Config.User;
 
 //cache the most necessary info for the server, (users, recent messages, and the chatlog)
 

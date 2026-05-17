@@ -2,16 +2,14 @@ package Components;
 
 import java.util.HashSet;
 import java.util.function.Consumer;
-import java.util.function.Supplier;
 
 import Components.ComponentMacros.MessageType;
 import Components.Config.LocalProfile;
 import Components.Helper.CallConfig;
-import Network.AudioCallClient;
-import Network.AudioCallServer;
+import Handlers.AppObserver;
 import Network.CallClient;
 import Network.CallServer;
-import Network.User;
+import Network.ChatObj;
 import javafx.application.Platform;
 import javafx.geometry.Pos;
 import javafx.scene.control.Button;
@@ -29,13 +27,13 @@ public class ChatComp extends StackPane{
     //text box below
 
     //need user to send messages to server and receive messages from server
-    private User user;
     private ChatNav chatNav;
     private ScrollPane scrollChat;
     private VBox core;
     private CallComp callComp;
 
-    public ChatComp(User user) {
+    public ChatComp() {
+        ChatObj chat = AppObserver.getInstance().getCurrentChat();
         setMaxHeight(Double.MAX_VALUE);
         setMaxWidth(Double.MAX_VALUE);
         setMinWidth(40);
@@ -44,8 +42,8 @@ public class ChatComp extends StackPane{
         this.getStyleClass().add("chat-comp");
 
         //User section
-        this.user = user;
-        user.setOnMessageReceived(m -> {
+        
+        chat.setOnMessageReceived(m -> {
             System.out.println("OnMessageReceived in ChatComp");
             Platform.runLater(() -> handleMessage(m));
         });
@@ -55,7 +53,7 @@ public class ChatComp extends StackPane{
         this.core = new VBox();
         this.core.setSpacing(0);
 
-        this.chatNav = new ChatNav(user.getInfo());
+        this.chatNav = new ChatNav(chat.getInfo());
         
         
 
@@ -64,7 +62,8 @@ public class ChatComp extends StackPane{
         ChatBox chatBox = new ChatBox();
         chatBox.setKeyConsume(this::outtyping);
         chatBox.setOnSend((message) -> {
-            Message msg = new Message(LocalProfile.getUsername(), message, MessageType.MESSAGE.getValue());
+            LocalProfile profile = AppObserver.getInstance().getLocalProfile();
+            Message msg = new Message(profile.getUser().getUsername(), message, MessageType.MESSAGE.getValue());
             sendMessage(msg);
         });
 
@@ -91,10 +90,11 @@ public class ChatComp extends StackPane{
                 addMessage(message);
                 return;
             }
+            LocalProfile profile = AppObserver.getInstance().getLocalProfile();
 
             if ((message.type & MessageType.AUDIO_HOST.getValue()) > 0) {
                 CallConfig config = CallConfig.fromBytes(message.messageData);
-                if (message.sender.equals(LocalProfile.getUsername()) || config.HOSTNAME.equals(user.getName())) { return; }
+                if (message.sender.equals(profile.getUser().getUsername()) || config.HOSTNAME.equals(profile.getUser().getUsername())) { return; }
                 chatNav.addAvailableCall(config);
                 return;
             }
@@ -116,15 +116,12 @@ public class ChatComp extends StackPane{
                 addMessage(msg);
         }
     }
-
-    public User getUser() {
-        return this.user;
-    }
-    //handling incoming typing later
+    
     private void outtyping(KeyEvent e) {
-        if (user == null) return;
+        if (AppObserver.getInstance().getCurrentChat() == null) return;
         //on outtyping, the chatBox doesn't need to change but a typing signal must still be broadcast to all users
-        Message msg = new Message(LocalProfile.getUsername(), "", MessageType.TYPING.getValue());
+        LocalProfile profile = AppObserver.getInstance().getLocalProfile();
+        Message msg = new Message(profile.getUser().getUsername(), "", MessageType.TYPING.getValue());
         sendMessage(msg);
     }
 
@@ -162,12 +159,13 @@ public class ChatComp extends StackPane{
 
     //as bytes or as Message object?
     private void sendMessage(Message message) {
-        if (user != null) {
+        ChatObj chat = AppObserver.getInstance().getCurrentChat();
+        if (chat != null) {
             System.out.println("Sending message");
-            user.send(message);
+            chat.send(message);
             //Just a test
             // message.messageData = ceasarCipher(new String(message.messageData), 3).getBytes();
-            // user.send(message);
+            // chat.send(message);
             // message.messageData = multiplicativeCipher(new String(message.messageData), 5).getBytes();
             // user.send(message);
         }
@@ -176,24 +174,27 @@ public class ChatComp extends StackPane{
 
     //start with an audio call, video is optional
     private void toggleAudioCall(CallConfig config) {
+        LocalProfile profile = AppObserver.getInstance().getLocalProfile();
         if (this.callComp == null) {
+            this.callComp = new CallComp();
             //Came from own machine
             if (config == null) {
-                CallServer server = new CallServer();
-                this.callComp = new CallComp(server);
-                this.callComp.getCallObj().openAudioCall();
-                byte[] serverConfig = CallConfig.toBytes(server.getAddress(), server.getPort(), user.getName());
+                //[SERVER]
+                AppObserver.getInstance().openIncomingCall();
+                CallServer server = (CallServer) AppObserver.getInstance().getCurrentCall();
+                server.openAudioCall();
+                byte[] serverConfig = CallConfig.toBytes(server.getAddress(), server.getPort(), profile.getUser().getUsername());
                 if (serverConfig.length == 0) {
                     System.out.println("Failed to get server config, cannot start audio call");
                 }
                 else {
-                    sendMessage(new Message(user.getName(), serverConfig, MessageType.AUDIO_HOST.getValue()));
+                    sendMessage(new Message(profile.getUser().getUsername(), serverConfig, MessageType.AUDIO_HOST.getValue()));
                 }
             }
             else {
-                CallClient client = new CallClient(config.HOST, config.PORT);
-                this.callComp = new CallComp(client);
-                this.callComp.getCallObj().openAudioCall();
+                AppObserver.getInstance().openOutgoingCall(config.HOSTNAME, config.PORT);
+                CallClient client = (CallClient) AppObserver.getInstance().getCurrentCall();
+                client.openAudioCall();
             }
 
             this.callComp.setOnEnd(() -> {
@@ -269,6 +270,7 @@ class ChatBox extends VBox {
         this.sendBox.getStyleClass().add("send-box");
         this.chatDisplay = new VBox();
         this.chatDisplay.setSpacing(4); // slight gap between message bubbles for readability
+        this.chatDisplay.getStyleClass().add("message-area");
         this.getChildren().add(this.chatDisplay);
         this.getChildren().addAll(this.sendBox);
         

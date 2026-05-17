@@ -1,46 +1,37 @@
 package Network;
 
-import java.io.BufferedReader;
-import java.io.BufferedWriter;
-import java.io.ByteArrayInputStream;
-import java.io.ByteArrayOutputStream;
-import java.io.DataInputStream;
-import java.io.DataOutputStream;
 import java.io.IOException;
-import java.io.InputStream;
 import java.net.DatagramPacket;
 import java.net.DatagramSocket;
 import java.net.InetAddress;
 import java.net.NetworkInterface;
 import java.net.SocketAddress;
 import java.net.SocketException;
-import java.nio.Buffer;
+import java.net.SocketTimeoutException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Enumeration;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
-import java.util.Queue;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
-import java.util.concurrent.TimeUnit;
+import java.util.prefs.Preferences;
 
 import Components.ComponentMacros.DatagramType;
-import javafx.scene.chart.PieChart.Data;
-
-
 
 public class CallServer extends CallObj implements AutoCloseable {
     DatagramSocket docket;
     HashMap<SocketAddress, Long> clients = new HashMap<>(); // Track client activity timestamp
     private InetAddress ADDRESS;
     private int PORT;
-    private static final int INACTIVITY_TIMEOUT = 2000; // 2 seconds in milliseconds
+    private static final int INACTIVITY_TIMEOUT = 2000;
+    private static final boolean DEBUG_PACKET_TYPE = Preferences.userRoot().node("wheelbarrow/debug").getBoolean("mode", false);
 
     // Threads
-    Thread receiveThread;
-    Thread broadcastThread;
+    private volatile Thread receiveThread;
+    private volatile Thread broadcastThread;
 
     private volatile boolean running = false;
 
@@ -50,7 +41,7 @@ public class CallServer extends CallObj implements AutoCloseable {
     int INCLUSIVE_BUFFER_SIZE = Call.GENERIC_BUFFER_SIZE + AudioCall.NETWORK_BUFFER_SIZE + VideoCall.NETWORK_BUFFER_SIZE; // Adjust as needed
 
     
-    BlockingQueue<Packet> outboundQueue = new LinkedBlockingQueue<>(40);
+    BlockingQueue<byte[]> outboundQueue = new LinkedBlockingQueue<>(40);
 
     public CallServer() {
         //what if already hosting server? could just use the same socket
@@ -60,21 +51,21 @@ public class CallServer extends CallObj implements AutoCloseable {
             docket = new DatagramSocket(PORT, ADDRESS);
             docket.setSoTimeout(INACTIVITY_TIMEOUT); // 2 second timeout instead of 50
         }
-        catch (SocketException s) {
-            System.out.println("Could not create socket on port 50000 with address " + ADDRESS + ": " + s.getMessage());
+        catch (SocketException s1) {
+            System.out.println("Could not create socket on port 50000 with address " + ADDRESS + ": " + s1.getMessage());
             try {
                 // Retry with wildcard address (null) to bind to all interfaces
                 docket = new DatagramSocket(0, ADDRESS);
                 PORT = docket.getLocalPort();
-                docket.setSoTimeout(INACTIVITY_TIMEOUT); // 2 second timeout instead of 50
-            } catch (SocketException e) {
-                System.out.println("Could not create socket with address " + ADDRESS + ": " + e.getMessage());
+                docket.setSoTimeout(INACTIVITY_TIMEOUT);
+            } catch (SocketException s2) {
+                System.out.println("Could not create socket with address " + ADDRESS + ": " + s2.getMessage());
                 try {
                     // Final attempt with wildcard address and any available port
                     docket = new DatagramSocket(0);
                     PORT = docket.getLocalPort();
-                    docket.setSoTimeout(INACTIVITY_TIMEOUT); // 2 second timeout instead of 50
-                    ADDRESS = docket.getLocalAddress(); // Update ADDRESS to the one assigned by the socket
+                    docket.setSoTimeout(INACTIVITY_TIMEOUT);
+                    ADDRESS = docket.getLocalAddress();
                 } catch (SocketException ex) {
                     System.out.println("Failed to create socket: " + ex.getMessage());
                     throw new RuntimeException("Unable to start audio call server");
@@ -82,34 +73,39 @@ public class CallServer extends CallObj implements AutoCloseable {
                 return;
             }
         }
-        
-        // Ensure ADDRESS is set from the socket if it's null
+
         if (ADDRESS == null) {
             ADDRESS = docket.getLocalAddress();
         }
-        start();
     }
-
-
+    @Override
     public void openAudioCall() {
+        if (!running) {
+            System.out.println("Server not running, cannot open audio call");
+            return;
+        }
         audioCall = new AudioCallServer();
         audioCall.start();
         audioCall.setOnAudioSupply(this::supplyAudio);
     }
 
     private void supplyAudio(byte[] audioData) {
-        outboundQueue.offer(new Packet(DatagramType.AUDIO, audioData));
+        outboundQueue.offer(audioData);
     }
 
+    @Override
     public void openVideoCall() {
+        if (!running) {
+            System.out.println("Server not running, cannot open video call");
+            return;
+        }
         videoCall = new VideoCallServer();
         videoCall.start();
         videoCall.setOnVideoSupply(this::supplyVideo);
-        
     }
 
     private void supplyVideo(byte[] videoData) {
-        outboundQueue.offer(new Packet(DatagramType.VIDEO, videoData));
+        outboundQueue.offer(videoData);
     }
 
     @Override
@@ -131,12 +127,13 @@ public class CallServer extends CallObj implements AutoCloseable {
             DatagramPacket request = new DatagramPacket(networkData, networkData.length);
             try {
                 docket.receive(request);
-            } catch (IOException e) {
-                System.out.println("Error receiving packet: " + e.getMessage());
+            } catch (SocketTimeoutException ste) {
+                // Handle socket timeout
+                continue; // Just continue
+            } catch (IOException io) {
+                System.out.println("Error receiving packet: " + io.getMessage());
                 continue;
             }
-
-            DataInputStream dis = new DataInputStream(new ByteArrayInputStream(request.getData(), 0, request.getLength())); // always reconstructing????
 
             // Handle new clients
             SocketAddress clientAddress = request.getSocketAddress();
@@ -144,72 +141,85 @@ public class CallServer extends CallObj implements AutoCloseable {
                 long currentTime = System.currentTimeMillis();
                 if (!clients.containsKey(clientAddress)) {
                     System.out.println("New client connected: " + clientAddress);
-                    clients.put(clientAddress, currentTime);
-                } else {
-                    clients.put(clientAddress, currentTime);
                 }
+                clients.put(clientAddress, currentTime);
             }
 
-            try {
-            int type = dis.readInt(); //call type
-
+            //determine type by checking against format
+            int type;
+            if (request.getLength() <= AudioCall.NETWORK_BUFFER_SIZE) {
+                type = DatagramType.AUDIO.getValue();
+            } else if (request.getLength() <= VideoCall.NETWORK_BUFFER_SIZE) {
+                type = DatagramType.VIDEO.getValue();
+            } else {
+                //Really we would want a format test here if the sizes fail
+                type = DatagramType.UNKNOWN.getValue(); // Treat as debug or unknown type
+            }
+            
+            if (DEBUG_PACKET_TYPE) {
+                System.out.println("[CallServer][RECV] from=" + clientAddress + " type=" + type + " (" + typeToLabel(type) + ") payload=" + request.getLength());
+            }
+            
+            byte[] packetData = request.getData();
             if (type == DatagramType.AUDIO.getValue()) {
-                byte[] audioData = new byte[AudioCall.NETWORK_BUFFER_SIZE];
-                dis.readFully(audioData, 0, AudioCall.NETWORK_BUFFER_SIZE);
+                byte[] audioData = Arrays.copyOf(packetData, request.getLength());
                 receiveAudio(audioData);
-            }
-            else if (type == DatagramType.VIDEO.getValue()) {
-                byte[] videoData = new byte[VideoCall.NETWORK_BUFFER_SIZE];
-                dis.readFully(videoData, 0, VideoCall.NETWORK_BUFFER_SIZE);
+            } else if (type == DatagramType.VIDEO.getValue()) {
+                byte[] videoData = Arrays.copyOf(packetData, request.getLength());
                 receiveVideo(videoData);
-            }
-            } catch (IOException e) {
-                System.out.println("Error parsing received packet: " + e.getMessage());
+            } else if (type == DatagramType.UNKNOWN.getValue()) {
+                System.out.println("[CallServer][RECV] Unknown datagram type=" + type);
             }
         }
     }
 
-     private void handleBroadcast() {
-        
+    private void handleBroadcast() {
         while (running) {
-            //Problem both of these will block
-            //could use two separate sub threads or use a buffer
-            // Block until at least one packet is ready
-            Packet first = null;
+            byte[] first;
             try {
                 first = outboundQueue.take();
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
+                break;
             }
-            
-            // Drain everything else that's already waiting
-            List<Packet> batch = new ArrayList<>();
+
+            List<byte[]> batch = new ArrayList<>();
             batch.add(first);
-            outboundQueue.drainTo(batch); // non-blocking, grabs whatever is there
+            outboundQueue.drainTo(batch);
 
             synchronized (clients) {
-            Iterator<Map.Entry<SocketAddress, Long>> iterator = clients.entrySet().iterator();
-            
-            while (iterator.hasNext()) {
-                Map.Entry<SocketAddress, Long> entry = iterator.next();
-                long lastActivityTime = entry.getValue();
-                long currentTime = System.currentTimeMillis();
+                Iterator<Map.Entry<SocketAddress, Long>> iterator = clients.entrySet().iterator();
 
-                if (currentTime - lastActivityTime > INACTIVITY_TIMEOUT) {
-                    SocketAddress inactiveClient = entry.getKey();
-                    iterator.remove();
-                    System.out.println("Removed inactive client: " + inactiveClient);
-                }
-                else {
-                    for (Packet packet : batch) {
-                        ByteArrayOutputStream baos = new ByteArrayOutputStream();
-                        DataOutputStream dos = new DataOutputStream(baos);
-                        if (packet != null) {
+                while (iterator.hasNext()) {
+                    Map.Entry<SocketAddress, Long> entry = iterator.next();
+                    long lastActivityTime = entry.getValue();
+                    long currentTime = System.currentTimeMillis();
+
+                    if (currentTime - lastActivityTime > INACTIVITY_TIMEOUT) {
+                        SocketAddress inactiveClient = entry.getKey();
+                        iterator.remove();
+                        System.out.println("Removed inactive client: " + inactiveClient);
+                    } else {
+                        for (byte[] packetData : batch) {
+                            if (packetData == null) {
+                                continue;
+                            }
+                            
+                            // Determine packet type
+                            int type;
+                            if (packetData.length <= AudioCall.NETWORK_BUFFER_SIZE) {
+                                type = DatagramType.AUDIO.getValue();
+                            } else if (packetData.length <= VideoCall.NETWORK_BUFFER_SIZE) {
+                                type = DatagramType.VIDEO.getValue();
+                            } else {
+                                type = DatagramType.UNKNOWN.getValue();
+                            }
+                            
                             try {
-                                    dos.writeInt(packet.type().getValue());
-                                    dos.write(packet.data());
-                                    byte[] packetData = baos.toByteArray();
-                                    docket.send(new DatagramPacket(packetData, packetData.length, entry.getKey()));
+                                if (DEBUG_PACKET_TYPE) {
+                                    System.out.println("[CallServer][SEND] to=" + entry.getKey() + " type=" + type + " (" + typeToLabel(type) + ") payload=" + packetData.length);
+                                }
+                                docket.send(new DatagramPacket(packetData, packetData.length, entry.getKey()));
                             } catch (IOException e) {
                                 System.out.println("Error sending packet to " + entry.getKey() + ": " + e.getMessage());
                             }
@@ -219,8 +229,6 @@ public class CallServer extends CallObj implements AutoCloseable {
             }
         }
     }
-}
-
 
     private void receiveAudio(byte[] data) {
         if (audioCall != null) {
@@ -234,10 +242,7 @@ public class CallServer extends CallObj implements AutoCloseable {
         }
     }
 
-
-
-
-   @Override
+    @Override
     public void close() {
         stop();
     }
@@ -254,10 +259,7 @@ public class CallServer extends CallObj implements AutoCloseable {
         this.broadcastThread = new Thread(this::handleBroadcast);
         this.broadcastThread.setDaemon(true);
         this.broadcastThread.start();
-
-        openAudioCall();
     }
-
 
     @Override
     public void stop() {
@@ -269,20 +271,23 @@ public class CallServer extends CallObj implements AutoCloseable {
             videoCall.stop();
         }
 
-
         
-
-        this.receiveThread.interrupt();
-        this.broadcastThread.interrupt();
-        try {
-            this.receiveThread.join();
-        } catch (InterruptedException e) {
+        
+        if (this.receiveThread != null) {
             this.receiveThread.interrupt();
+            try {
+                this.receiveThread.join();
+            } catch (InterruptedException e) {
+                this.receiveThread.interrupt();
+            }
         }
-        try {
-            this.broadcastThread.join();
-        } catch (InterruptedException e) {
+        if (this.broadcastThread != null) {
             this.broadcastThread.interrupt();
+            try {
+                this.broadcastThread.join();
+            } catch (InterruptedException e) {
+                this.broadcastThread.interrupt();
+            }
         }
 
         try {
@@ -290,22 +295,20 @@ public class CallServer extends CallObj implements AutoCloseable {
         } catch (Exception e) {
             System.out.println("Error closing socket: " + e.getMessage());
         }
+        clients.clear();
     }
-
 
     private InetAddress getLocalNetworkAddress() {
         try {
             Enumeration<NetworkInterface> interfaces = NetworkInterface.getNetworkInterfaces();
             while (interfaces.hasMoreElements()) {
                 NetworkInterface ni = interfaces.nextElement();
-                // Skip loopback and inactive interfaces
                 if (ni.isLoopback() || !ni.isUp()) {
                     continue;
                 }
                 Enumeration<InetAddress> addresses = ni.getInetAddresses();
                 while (addresses.hasMoreElements()) {
                     InetAddress addr = addresses.nextElement();
-                    // Return first non-loopback, non-link-local IPv4 address
                     if (!addr.isLoopbackAddress() && !addr.isLinkLocalAddress()) {
                         return addr;
                     }
@@ -325,4 +328,13 @@ public class CallServer extends CallObj implements AutoCloseable {
         return PORT;
     }
 
+    private String typeToLabel(int type) {
+        if (type == DatagramType.AUDIO.getValue()) {
+            return "AUDIO";
+        }
+        if (type == DatagramType.VIDEO.getValue()) {
+            return "VIDEO";
+        }
+        return "UNKNOWN";
+    }
 }

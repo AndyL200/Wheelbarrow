@@ -2,6 +2,7 @@ package Components;
 
 import javax.sound.sampled.Mixer;
 
+import Handlers.AppObserver;
 import Network.AudioCall;
 import Network.Call;
 import Network.CallObj;
@@ -25,15 +26,12 @@ public class CallComp extends StackPane {
     private Button endCallBtn;
     private Button exitBtn;
     
-    private CallObj callObj;
-
     //signals
     private Runnable onExit;
     private Runnable onMute;
     private Runnable onEnd;
 
-    public CallComp(CallObj call) {
-        this.callObj = call;
+    public CallComp() {
         this.getStyleClass().add("audio-call-comp");
         this.setMaxHeight(Double.MAX_VALUE);
         this.setMaxWidth(Double.MAX_VALUE);
@@ -83,6 +81,10 @@ public class CallComp extends StackPane {
         // End call button
         this.endCallBtn = new Button("End Call");
         this.endCallBtn.getStyleClass().add("audio-end-call-btn");
+        this.endCallBtn.setOnAction(e -> {
+            System.out.println("End call clicked");
+            if (onEnd != null) onEnd.run();
+        });
 
         
         // Exit button
@@ -104,11 +106,9 @@ public class CallComp extends StackPane {
         });
 
         micPicker.setOnAction(e -> {
-            if (this.callObj != null && this.callObj.getAudio() != null) {
-                this.callObj.getAudio().setMic(micPicker.getValue());
-            }
-            else {
-                micPicker.setValue(null);
+            CallObj callObj = AppObserver.getInstance().getCurrentCall();
+            if (callObj != null && callObj.getAudio() != null) {
+                callObj.getAudio().setMic(micPicker.getValue());
             }
         });
 
@@ -122,11 +122,9 @@ public class CallComp extends StackPane {
             }
         });
         speakerPicker.setOnAction(e -> {
-            if (this.callObj != null && this.callObj.getAudio() != null) {
-                this.callObj.getAudio().setSpeaker(speakerPicker.getValue());
-            }
-            else {
-                speakerPicker.setValue(null);
+            CallObj callObj = AppObserver.getInstance().getCurrentCall();
+            if (callObj != null && callObj.getAudio() != null) {
+                callObj.getAudio().setSpeaker(speakerPicker.getValue());
             }
         });
         
@@ -134,8 +132,6 @@ public class CallComp extends StackPane {
         
         this.container.getChildren().addAll(this.callUsers, this.controls);
         this.getChildren().add(this.container);
-
-        this.callObj.start();
     }
     
     public GridPane getCallUsersGrid() {
@@ -154,29 +150,16 @@ public class CallComp extends StackPane {
         this.onMute = onMute;
     }
     
-    public void setOnEnd(Runnable toEnd) {
-        this.onEnd = toEnd;
+    public void setOnEnd(Runnable onEnd) {
+        this.onEnd = onEnd;
     }
 
     public void endCall() {
-        this.callObj.stop();
+        CallObj callObj = AppObserver.getInstance().getCurrentCall();
+        if (callObj != null) {
+            callObj.stop();
+        }
         System.out.println("Call scheduled for termination.");
-    }
-
-    public CallObj getCallObj() {
-        return this.callObj;
-    }
-
-
-    public void setCallObj(CallObj callObj) {
-        this.callObj = callObj;
-        this.endCallBtn.setOnAction(e -> {
-            System.out.println("Call ended");
-            if (onEnd != null) onEnd.run();
-            if (this.callObj != null) {
-                this.callObj.stop();
-            }
-        });
     }
 
 }

@@ -1,6 +1,10 @@
 package Scenes;
 
 import Components.Config.LocalProfile;
+import Components.Helper.SceneType;
+import Handlers.AppObserver;
+import Handlers.SceneHandler;
+import Handlers.ThemeManager;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.Node;
@@ -13,7 +17,9 @@ import javafx.stage.FileChooser;
 
 import java.io.File;
 
-public class SettingsScene extends AppSceneTemplate {
+import com.oracle.javafx.scenebuilder.kit.editor.EditorPlatform.Theme;
+
+public class SettingsScene extends AppScene {
 
     // Sidebar category buttons
     private static final String[] CATEGORIES = {
@@ -48,9 +54,6 @@ public class SettingsScene extends AppSceneTemplate {
         root.setCenter(contentArea);
 
         showCategory("Appearance");
-
-        // Apply inline styles (no external CSS needed)
-        applyStyles();
 
         // Assume AppSceneTemplate exposes a setRoot or getScene method
         // Adapt this line to match your actual template API:
@@ -89,6 +92,12 @@ public class SettingsScene extends AppSceneTemplate {
             bar.getChildren().add(btn);
         }
 
+        Button backBtn = new Button("Back to chat");
+        backBtn.getStyleClass().addAll("sidebar-btn", "sidebar-back-btn");
+        backBtn.setOnMouseClicked((e) -> {
+            SceneHandler.get().switchScene(new ChatScene());
+        });
+        bar.getChildren().add(backBtn);
         return bar;
     }
 
@@ -118,13 +127,13 @@ public class SettingsScene extends AppSceneTemplate {
         RadioButton darkMode  = new RadioButton("Dark");
         lightMode.setToggleGroup(themeGroup);
         darkMode.setToggleGroup(themeGroup);
-        darkMode.setSelected(true); // default
+        darkMode.setSelected(ThemeManager.getInstance().isDarkTheme); // default
+        lightMode.setSelected(!ThemeManager.getInstance().isDarkTheme);
         lightMode.getStyleClass().add("settings-radio");
         darkMode.getStyleClass().add("settings-radio");
 
         themeGroup.selectedToggleProperty().addListener((obs, old, nw) -> {
-            if (nw == lightMode) applyTheme("light");
-            else                 applyTheme("dark");
+            ThemeManager.getInstance().switchDarkMode();
         });
 
         HBox themeRow = new HBox(16, lightMode, darkMode);
@@ -141,7 +150,7 @@ public class SettingsScene extends AppSceneTemplate {
         colorLabel.getStyleClass().add("settings-label");
         ColorPicker colorPicker = new ColorPicker(Color.web("#1a1a2e"));
         colorPicker.getStyleClass().add("settings-control");
-        colorPicker.setOnAction(e -> applyBackgroundColor(colorPicker.getValue()));
+        colorPicker.setOnAction(e -> ThemeManager.getInstance().setGlobalBackground(colorPicker.getValue().toString()));
         colorRow.getChildren().addAll(colorLabel, colorPicker);
         pane.getChildren().add(colorRow);
 
@@ -163,7 +172,7 @@ public class SettingsScene extends AppSceneTemplate {
             File chosen = fc.showOpenDialog(root.getScene() != null ? root.getScene().getWindow() : null);
             if (chosen != null) {
                 imagePathLabel.setText(chosen.getName());
-                applyBackgroundImage(chosen.getAbsolutePath());
+                ThemeManager.getInstance().setGlobalBackgroundImage(chosen.getAbsolutePath());
             }
         });
 
@@ -188,7 +197,8 @@ public class SettingsScene extends AppSceneTemplate {
 
         pane.getChildren().add(sectionTitle("Session"));
 
-        String username = LocalProfile.getUsername();
+        LocalProfile profile = AppObserver.getInstance().getLocalProfile();
+        String username = (profile != null && profile.getUser() != null) ? profile.getUser().getUsername() : null;
         boolean loggedIn = username != null;
 
         Label whoLabel = new Label(loggedIn ? "Logged in as: " + username : "Not logged in");
@@ -222,7 +232,7 @@ public class SettingsScene extends AppSceneTemplate {
 
         CheckBox requirePassword = new CheckBox("Require password on launch");
         requirePassword.getStyleClass().add("settings-check");
-        requirePassword.setSelected(LocalProfile.isPasswordProtected());
+        requirePassword.setSelected(profile != null && profile.isPasswordProtected());
         requirePassword.selectedProperty().addListener((obs, old, nw) -> handlePasswordToggle(nw));
         pane.getChildren().add(requirePassword);
 
@@ -306,26 +316,10 @@ public class SettingsScene extends AppSceneTemplate {
         return container;
     }
 
-    // ── Action handlers (wire to your actual app logic) ───────────────────────
-
-    private void applyTheme(String mode) {
-        System.out.println("Theme: " + mode);
-        // TODO: toggle your app-wide stylesheet
-    }
-
-    private void applyBackgroundColor(Color color) {
-        System.out.println("BG color: " + color);
-        // TODO: push to app state
-    }
-
-    private void applyBackgroundImage(String path) {
-        System.out.println("BG image: " + path);
-        // TODO: push to app state
-    }
-
+   
     private void handleLogout(VBox pane) {
         try {
-            LocalProfile.delete();
+            //LocalProfile.delete();
             showCategory("Account"); // refresh panel
         } catch (Exception e) {
             System.out.println("Logout error: " + e.getMessage());
@@ -346,136 +340,7 @@ public class SettingsScene extends AppSceneTemplate {
         // TODO: show password entry dialog if enabling
         System.out.println("Password protection: " + enabled);
     }
-
-    // ── Inline styles ─────────────────────────────────────────────────────────
-
-    private void applyStyles() {
-        root.setStyle("""
-            -fx-background-color: #0f0f17;
-            -fx-font-family: 'Segoe UI', sans-serif;
-        """);
-
-        // Sidebar
-        sidebar.setStyle("""
-            -fx-background-color: #16161f;
-            -fx-border-color: #2a2a3d;
-            -fx-border-width: 0 1 0 0;
-        """);
-
-        // Apply style classes via inline lookup — done via scene stylesheet
-        // Add a stylesheet string programmatically
-        String css = """
-            .sidebar-header {
-                -fx-text-fill: #e0e0ff;
-                -fx-font-size: 16px;
-                -fx-font-weight: bold;
-                -fx-padding: 0 0 8 4;
-            }
-            .sidebar-btn {
-                -fx-background-color: transparent;
-                -fx-text-fill: #9090b0;
-                -fx-font-size: 13px;
-                -fx-padding: 9 14;
-                -fx-alignment: CENTER-LEFT;
-                -fx-cursor: hand;
-                -fx-background-radius: 6;
-                -fx-border-width: 0;
-            }
-            .sidebar-btn:hover {
-                -fx-background-color: #22223a;
-                -fx-text-fill: #d0d0f0;
-            }
-            .sidebar-btn-active {
-                -fx-background-color: #2a2a50;
-                -fx-text-fill: #a0a8ff;
-                -fx-font-weight: bold;
-            }
-            .settings-content {
-                -fx-background-color: #0f0f17;
-            }
-            .settings-section-title {
-                -fx-text-fill: #a0a8ff;
-                -fx-font-size: 12px;
-                -fx-font-weight: bold;
-                -fx-text-transform: uppercase;
-                -fx-padding: 0 0 4 0;
-            }
-            .settings-label {
-                -fx-text-fill: #c0c0e0;
-                -fx-font-size: 13px;
-                -fx-min-width: 180;
-            }
-            .settings-hint {
-                -fx-text-fill: #6060a0;
-                -fx-font-size: 12px;
-            }
-            .settings-check .box {
-                -fx-background-color: #22223a;
-                -fx-border-color: #4040a0;
-                -fx-border-radius: 3;
-            }
-            .settings-check:selected .box {
-                -fx-background-color: #5050c8;
-            }
-            .settings-check {
-                -fx-text-fill: #c0c0e0;
-                -fx-font-size: 13px;
-            }
-            .settings-radio {
-                -fx-text-fill: #c0c0e0;
-                -fx-font-size: 13px;
-            }
-            .settings-radio .radio {
-                -fx-border-color: #4040a0;
-                -fx-background-color: #22223a;
-            }
-            .settings-radio:selected .radio {
-                -fx-background-color: #5050c8;
-            }
-            .settings-btn {
-                -fx-background-color: #2a2a50;
-                -fx-text-fill: #c0c0ff;
-                -fx-font-size: 13px;
-                -fx-padding: 8 18;
-                -fx-background-radius: 6;
-                -fx-cursor: hand;
-                -fx-border-width: 0;
-            }
-            .settings-btn:hover {
-                -fx-background-color: #3a3a70;
-            }
-            .settings-btn-danger {
-                -fx-background-color: #3a1a2a;
-                -fx-text-fill: #ff8080;
-            }
-            .settings-btn-danger:hover {
-                -fx-background-color: #5a2a3a;
-            }
-            .settings-separator {
-                -fx-background-color: #2a2a3d;
-            }
-            .settings-slider .track {
-                -fx-background-color: #2a2a4a;
-                -fx-pref-height: 4px;
-            }
-            .settings-slider .thumb {
-                -fx-background-color: #6060d0;
-                -fx-background-radius: 50%;
-                -fx-pref-width: 16px;
-                -fx-pref-height: 16px;
-            }
-            .settings-slider .thumb:hover {
-                -fx-background-color: #8080ff;
-            }
-        """;
-
-        // Write to temp file and load — or inject via data URI
-        try {
-            java.nio.file.Path tmp = java.nio.file.Files.createTempFile("wheelbarrow-settings", ".css");
-            java.nio.file.Files.writeString(tmp, css);
-            root.getStylesheets().add(tmp.toUri().toString());
-        } catch (Exception e) {
-            System.out.println("Could not load settings CSS: " + e.getMessage());
-        }
+    public SceneType getSceneType() {
+        return SceneType.SETTINGS;
     }
 }

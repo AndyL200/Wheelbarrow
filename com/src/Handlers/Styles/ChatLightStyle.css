@@ -1,0 +1,200 @@
+/* ─────────────────────────────────────────────────────────────────────────── */
+/* CHAT SCENE - LIGHT THEME */
+/* ─────────────────────────────────────────────────────────────────────────── */
+
+.root {
+    -fx-background-color: #F5F5F5;
+    -fx-text-fill: #1A2433;
+}
+
+.chat-comp {
+    -fx-background-color: #F5F5F5;
+}
+
+.navbar {
+    -fx-background-color: #FFFFFF;
+    -fx-border-color: #E0E0E0;
+    -fx-border-width: 0 0 1 0;
+    -fx-padding: 10px;
+    -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.08), 2, 0, 0, 1);
+}
+
+.server-title-label {
+    -fx-font-size: 16px;
+    -fx-font-weight: bold;
+    -fx-text-fill: #1A2433;
+}
+
+.sidebar-style {
+    -fx-background-color: #FFFFFF;
+    -fx-border-color: #E0E0E0;
+    -fx-border-width: 0 1 0 0;
+}
+
+.server-entry {
+    -fx-padding: 12px;
+    -fx-background-color: transparent;
+    -fx-text-fill: #1A2433;
+    -fx-font-size: 13px;
+}
+
+.server-entry:hover {
+    -fx-background-color: #F0F0F0;
+}
+
+.server-entry-selected {
+    -fx-background-color: #E3F2FD;
+    -fx-border-color: #1E88E5;
+    -fx-border-width: 0 3 0 0;
+    -fx-text-fill: #1E88E5;
+    -fx-font-weight: bold;
+}
+
+.message-label {
+    -fx-text-fill: #1A2433;
+    -fx-font-size: 13px;
+    -fx-wrap-text: true;
+}
+
+.message-time {
+    -fx-text-fill: #757575;
+    -fx-font-size: 11px;
+}
+
+.send-box {
+    -fx-background-color: #FFFFFF;
+    -fx-border-color: #E0E0E0;
+    -fx-border-width: 1 0 0 0;
+    -fx-padding: 12px;
+    -fx-spacing: 8px;
+}
+
+.msg-input {
+    -fx-pref-height: 40;
+    -fx-padding: 8px 12px;
+    -fx-background-color: #F5F5F5;
+    -fx-text-fill: #1A2433;
+    -fx-prompt-text-fill: #BDBDBD;
+    -fx-border-color: #E0E0E0;
+    -fx-border-radius: 6;
+    -fx-background-radius: 6;
+    -fx-border-width: 1;
+    -fx-font-size: 13px;
+}
+
+.msg-input:focused {
+    -fx-border-color: #1E88E5;
+    -fx-border-width: 2;
+    -fx-background-color: #FFFFFF;
+}
+
+.send-btn {
+    -fx-padding: 8px 16px;
+    -fx-background-color: #1E88E5;
+    -fx-text-fill: #FFFFFF;
+    -fx-font-size: 13px;
+    -fx-font-weight: bold;
+    -fx-background-radius: 6;
+    -fx-border-radius: 6;
+    -fx-cursor: hand;
+    -fx-pref-width: 60;
+}
+
+.send-btn:hover {
+    -fx-background-color: #1565C0;
+}
+
+.send-btn:pressed {
+    -fx-background-color: #0D47A1;
+}
+
+.send-btn:disabled {
+    -fx-background-color: #BDBDBD;
+    -fx-opacity: 0.6;
+}
+
+.audio-call-btn {
+    -fx-pref-width: 36;
+    -fx-pref-height: 36;
+    -fx-padding: 0;
+    -fx-background-color: #1E88E5;
+    -fx-text-fill: #FFFFFF;
+    -fx-font-size: 16px;
+    -fx-background-radius: 50%;
+    -fx-border-radius: 50%;
+    -fx-cursor: hand;
+    -fx-effect: dropshadow(gaussian, rgba(30,136,229,0.3), 4, 0, 0, 2);
+}
+
+.audio-call-btn:hover {
+    -fx-background-color: #1565C0;
+    -fx-effect: dropshadow(gaussian, rgba(21,101,192,0.4), 6, 0, 0, 3);
+}
+
+.audio-call-btn:pressed {
+    -fx-background-color: #0D47A1;
+}
+
+.video-call-btn {
+    -fx-pref-width: 36;
+    -fx-pref-height: 36;
+    -fx-padding: 0;
+    -fx-background-color: #1E88E5;
+    -fx-text-fill: #FFFFFF;
+    -fx-font-size: 16px;
+    -fx-background-radius: 50%;
+    -fx-border-radius: 50%;
+    -fx-cursor: hand;
+    -fx-effect: dropshadow(gaussian, rgba(30,136,229,0.3), 4, 0, 0, 2);
+}
+
+.video-call-btn:hover {
+    -fx-background-color: #1565C0;
+    -fx-effect: dropshadow(gaussian, rgba(21,101,192,0.4), 6, 0, 0, 3);
+}
+
+.video-call-btn:pressed {
+    -fx-background-color: #0D47A1;
+}
+
+.disconnect-btn {
+    -fx-pref-width: 36;
+    -fx-pref-height: 36;
+    -fx-padding: 0;
+    -fx-font-size: 16px;
+    -fx-background-radius: 50%;
+    -fx-border-radius: 50%;
+    -fx-cursor: hand;
+    -fx-effect: dropshadow(gaussian, rgba(229,57,53,0.3), 4, 0, 0, 2);
+}
+
+.disconnect-btn:hover {
+    -fx-background-color: #C62828;
+    -fx-effect: dropshadow(gaussian, rgba(198,40,40,0.4), 6, 0, 0, 3);
+}
+
+.disconnect-btn:pressed {
+    -fx-background-color: #B71C1C;
+}
+
+.message-area {
+    -fx-control-inner-background: #F5F5F5;
+    -fx-padding: 12px;
+}
+
+.message-area .scroll-pane {
+    -fx-background-color: #F5F5F5;
+}
+
+.message-area .scroll-bar {
+    -fx-background-color: #F5F5F5;
+}
+
+.message-area .scroll-bar:vertical .thumb {
+    -fx-background-color: #BDBDBD;
+    -fx-background-radius: 5;
+}
+
+.message-area .scroll-bar:vertical .thumb:hover {
+    -fx-background-color: #9E9E9E;
+}

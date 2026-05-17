@@ -30,7 +30,7 @@ import java.lang.ref.SoftReference;
 
 
 //auto closeable to ensure program exits properly
-public class Server implements User, AutoCloseable {
+public class Server extends ChatObj implements AutoCloseable {
     private volatile boolean running = true;
 
     public ServerSocket socket;

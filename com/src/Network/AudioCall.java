@@ -23,7 +23,7 @@ public interface AudioCall extends Call {
             Mixer mixer = AudioSystem.getMixer(mixerInfo);
             TargetDataLine line = (TargetDataLine) mixer.getLine(new Line.Info(TargetDataLine.class));
             return line;
-        } catch (LineUnavailableException l) {
+        } catch (Exception l) {
             System.out.println("Error setting microphone: " + l.getMessage());
             return null;
         }
@@ -34,7 +34,7 @@ public interface AudioCall extends Call {
             Mixer mixer = AudioSystem.getMixer(mixerInfo);
             SourceDataLine line = (SourceDataLine) mixer.getLine(new Line.Info(SourceDataLine.class));
             return line;
-        } catch (LineUnavailableException l) {
+        } catch (Exception l) {
             System.out.println("Error setting speaker: " + l.getMessage());
             return null;
         }
@@ -111,12 +111,13 @@ public interface AudioCall extends Call {
         return frames * frameSize; // guaranteed frame-aligned AND time-consistent
     }
 
-    public byte[] convertMicStream(byte[] input, AudioFormat tgtFmt);
-    public byte[] convertSpkrStream(byte[] input, AudioFormat tgtFmt);
+    //Using piped streams
+    public byte[] convertMicStream(byte[] input, AudioFormat mFmt);
+    public byte[] convertSpkrStream(byte[] input, AudioFormat sFmt);
 
     
     public static final AudioFormat COMMON_NETWORK_FORMAT = new AudioFormat(48000f, 16, 1, true, false);
-    public static final int NETWORK_BUFFER_SIZE = getBufferSize(COMMON_NETWORK_FORMAT, 20); // 20ms of audio per packet
+    public static final int NETWORK_BUFFER_SIZE = getBufferSize(COMMON_NETWORK_FORMAT, 50); // 50ms of audio per packet
     public void setMic(Mixer.Info mixerInfo);
     public void setSpeaker(Mixer.Info mixerInfo);
 
