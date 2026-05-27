@@ -8,7 +8,6 @@ public abstract class AppScene extends Scene {
     private static int BASE_WIDTH = 800;
     private static int BASE_HEIGHT = 600;
     
-
     public AppScene() {
         super(new javafx.scene.Group(), BASE_WIDTH, BASE_HEIGHT);
     }

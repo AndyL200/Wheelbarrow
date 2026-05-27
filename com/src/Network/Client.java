@@ -25,70 +25,44 @@ import Components.Message;
 public class Client extends ChatObj implements AutoCloseable {
     private volatile boolean running = true;
     private Socket SERVER;
-    public String SERVER_HOSTNAME = ""; 
     private ServerInfo info;
     private String HOSTNAME;
     private InetAddress ADDRESS;
+    private int PORT = 50000;
     private DataInputStream reader;
     private DataOutputStream writer;
     private Consumer<Message> onMessageReceived;
     
 
 
-    public Client(InetAddress address) {
-        this.SERVER_HOSTNAME = address.getHostName();
-        getClientAddress();
-        HOSTNAME = ADDRESS != null ? ADDRESS.getHostName() : "Unknown Client";
-        if (SERVER_HOSTNAME.equals(HOSTNAME)) {
-            HOSTNAME += "_1";
-        }
-
-        try {
-            SERVER = new Socket(address, 50000);
-            reader = new DataInputStream(SERVER.getInputStream());
-            writer = new DataOutputStream(SERVER.getOutputStream());
-            info = new ServerInfo("loading...", SERVER.getInetAddress(), SERVER.getPort(), null);
-            Thread receiveThread = new Thread(this::receiveLoop);
-            receiveThread.setDaemon(true);  // Exit with app
-            receiveThread.start();
-        } catch (IOException e) {
-            System.out.println("Error connecting to server: " + e.getMessage());
-        }
-    }
-
     public Client(InetAddress address, int port) {
-        this.SERVER_HOSTNAME = address.getHostName();
         getClientAddress();
         HOSTNAME = ADDRESS != null ? ADDRESS.getHostName() : "Unknown Client";
-        if (SERVER_HOSTNAME.equals(HOSTNAME)) {
-            HOSTNAME += "_1";
-        }
-        try {
-            SERVER = new Socket(address, port);
-            reader = new DataInputStream(SERVER.getInputStream());
-            writer = new DataOutputStream(SERVER.getOutputStream());
-            info = new ServerInfo("loading...", SERVER.getInetAddress(), SERVER.getPort(), null);
-            Thread receiveThread = new Thread(this::receiveLoop);
-            receiveThread.setDaemon(true);  // Exit with app
-            receiveThread.start();
-        } catch (IOException e) {
-            System.out.println("Error connecting to server: " + e.getMessage());
-        }
+        this.onMessageReceived = msg -> {System.out.println("[Client.onMessageReceived] " + new String(msg.messageData));};
+        info = new ServerInfo("loading...", address, port, null);
     }
 
     public Client(InetAddress address, int port, Consumer<Message> listener) {
-        this.SERVER_HOSTNAME = address.getHostName();
         getClientAddress();
         HOSTNAME = ADDRESS != null ? ADDRESS.getHostName() : "Unknown Client";
-        if (SERVER_HOSTNAME.equals(HOSTNAME)) {
-            HOSTNAME += "_1";
-        }
         this.onMessageReceived = listener;
+        info = new ServerInfo("loading...", address, port, null);
+    }
+
+    public void start() {
+        if (info == null) {
+            System.out.println("Client info not initialized, cannot start");
+            return;
+        }
+        InetAddress SERVER_ADDRESS = info.SERVER_ADDRESS;
+        int SERVER_PORT = info.SERVER_PORT;
+        if (SERVER_ADDRESS.getHostName().equals(HOSTNAME)) {
+            HOSTNAME += "_1"; //simple way to avoid hostname conflicts, could be improved by checking existing hostnames in the server
+        }
         try {
-            SERVER = new Socket(address, port);
+            SERVER = new Socket(SERVER_ADDRESS, SERVER_PORT);
             reader = new DataInputStream(SERVER.getInputStream());
             writer = new DataOutputStream(SERVER.getOutputStream());
-            info = new ServerInfo("loading...", SERVER.getInetAddress(), SERVER.getPort(), null);
             Thread receiveThread = new Thread(this::receiveLoop);
             receiveThread.setDaemon(true);  // Exit with app
             receiveThread.start();
@@ -96,7 +70,6 @@ public class Client extends ChatObj implements AutoCloseable {
             System.out.println("Error connecting to server: " + e.getMessage());
         }
     }
-
 
     private void receiveLoop() {
         while(running) {
@@ -122,7 +95,7 @@ public class Client extends ChatObj implements AutoCloseable {
                 }
                 else if ((msg.type & MessageType.WELCOME.getValue()) > 0) {
                     System.out.println("Received welcome message: " + new String(msg.messageData));
-                    SERVER_HOSTNAME = msg.sender;
+                    String SERVER_HOSTNAME = msg.sender;
                     info.SERVER_NAME.set(SERVER_HOSTNAME);
                     //send a request for server info
                     send(new Message(HOSTNAME, "Request", MessageType.SERVER_INFO.getValue()));
@@ -251,9 +224,8 @@ public class Client extends ChatObj implements AutoCloseable {
     public ServerInfo getInfo() {
         return info;
     }
-
     @Override
-    public void close() {
+    public void stop() {
         running = false;
         try {
             if (SERVER != null && !SERVER.isClosed()) {
@@ -262,6 +234,10 @@ public class Client extends ChatObj implements AutoCloseable {
         } catch (IOException e) {
             System.out.println("Error closing client socket: " + e.getMessage());
         }
+    }
+    @Override
+    public void close() {
+       stop();
     }
 
 }

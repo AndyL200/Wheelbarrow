@@ -10,13 +10,12 @@ import Scenes.LoginScene;
 
 
 public class Main extends Application {
-    SceneHandler controller;
     public static void main(String[] args) {
         
         //grab server cache from disk
-        Preferences pref = Preferences.userRoot().node("wheelbarrow");
+        Preferences pref = Preferences.userRoot().node("wheelbarrow/debug");
         pref.putBoolean("mode",true);
-        pref.putBoolean("concurrency", true);
+        pref.putBoolean("concurrency", false);
         AppObserver.getInstance(); // initialize the app observer singleton
         ThemeManager.getInstance(); // initialize the theme manager singleton
         Application.launch(args);
@@ -28,8 +27,7 @@ public class Main extends Application {
         stage.setTitle("OnlineCom");
         LoginScene login = new LoginScene(800, 600);
         SceneHandler.init(stage, login);
-        this.controller = SceneHandler.get();
-        login.setOnLogin((l) -> this.controller.switchScene(new ChatScene()));
+        login.setOnLogin((l) -> SceneHandler.get().switchScene(new ChatScene()));
         
 
         stage.show();

@@ -17,7 +17,10 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.locks.ReentrantLock;
 import java.util.prefs.Preferences;
+import java.util.concurrent.atomic.AtomicReference;
+
 
 import Components.ComponentMacros.DatagramType;
 
@@ -26,22 +29,20 @@ public class CallServer extends CallObj implements AutoCloseable {
     HashMap<SocketAddress, Long> clients = new HashMap<>(); // Track client activity timestamp
     private InetAddress ADDRESS;
     private int PORT;
-    private static final int INACTIVITY_TIMEOUT = 2000;
+    private static final int INACTIVITY_TIMEOUT = 30000;
     private static final boolean DEBUG_PACKET_TYPE = Preferences.userRoot().node("wheelbarrow/debug").getBoolean("mode", false);
 
     // Threads
     private volatile Thread receiveThread;
     private volatile Thread broadcastThread;
 
+    //Locks
+    private ReentrantLock audioLock = new ReentrantLock();
+    private ReentrantLock videoLock = new ReentrantLock();
+
     private volatile boolean running = false;
-
     
-
-
-    int INCLUSIVE_BUFFER_SIZE = Call.GENERIC_BUFFER_SIZE + AudioCall.NETWORK_BUFFER_SIZE + VideoCall.NETWORK_BUFFER_SIZE; // Adjust as needed
-
-    
-    BlockingQueue<byte[]> outboundQueue = new LinkedBlockingQueue<>(40);
+    AtomicReference<BlockingQueue<byte[]>> outboundQueue = new AtomicReference<>(new LinkedBlockingQueue<>(100));
 
     public CallServer() {
         //what if already hosting server? could just use the same socket
@@ -73,6 +74,27 @@ public class CallServer extends CallObj implements AutoCloseable {
                 return;
             }
         }
+        int minMTU = 65535;
+        try {
+        NetworkInterface.getNetworkInterfaces().asIterator().forEachRemaining((ni) -> {
+            try {
+                if (ni.isLoopback() || !ni.isUp()) {
+                    return;
+                }
+                int mtu = ni.getMTU();
+                if (mtu < minMTU) {
+                    minMTU = mtu;
+                }
+            } catch (SocketException e) {
+                System.out.println("Error checking network interface: " + e.getMessage());
+                return;
+            }
+            
+        });
+        docket.setSendBufferSize(minMTU);
+        } catch (SocketException se) {
+            System.out.println("Failed to set send buffer size: " + se.getMessage());
+        }
 
         if (ADDRESS == null) {
             ADDRESS = docket.getLocalAddress();
@@ -84,13 +106,22 @@ public class CallServer extends CallObj implements AutoCloseable {
             System.out.println("Server not running, cannot open audio call");
             return;
         }
-        audioCall = new AudioCallServer();
-        audioCall.start();
-        audioCall.setOnAudioSupply(this::supplyAudio);
+        audioLock.lock();
+        try {
+            if (audioCall != null) {
+                System.out.println("Audio call already open");
+                return;
+            }
+            audioCall = new AudioCallServer();
+            audioCall.start();
+            audioCall.setOnAudioSupply(this::supplyAudio);
+        } finally {
+            audioLock.unlock();
+        }
     }
 
     private void supplyAudio(byte[] audioData) {
-        outboundQueue.offer(audioData);
+        outboundQueue.get().offer(audioData);
     }
 
     @Override
@@ -99,13 +130,22 @@ public class CallServer extends CallObj implements AutoCloseable {
             System.out.println("Server not running, cannot open video call");
             return;
         }
-        videoCall = new VideoCallServer();
-        videoCall.start();
-        videoCall.setOnVideoSupply(this::supplyVideo);
+        videoLock.lock();
+        try {
+            if (videoCall != null) {
+                System.out.println("Video call already open");
+                return;
+            }
+            videoCall = new VideoCallServer();
+            videoCall.start();
+            videoCall.setOnVideoSupply(this::supplyVideo);
+        } finally {
+            videoLock.unlock();
+        }
     }
 
     private void supplyVideo(byte[] videoData) {
-        outboundQueue.offer(videoData);
+        outboundQueue.get().offer(videoData);
     }
 
     @Override
@@ -123,7 +163,7 @@ public class CallServer extends CallObj implements AutoCloseable {
         //receive the packet and feed it to correct call server
         //assumes generic buffer size is greater than network buffer size 
         while (running) {
-            byte[] networkData = new byte[INCLUSIVE_BUFFER_SIZE];
+            byte[] networkData = new byte[65535]; // Max UDP packet size
             DatagramPacket request = new DatagramPacket(networkData, networkData.length);
             try {
                 docket.receive(request);
@@ -177,68 +217,81 @@ public class CallServer extends CallObj implements AutoCloseable {
         while (running) {
             byte[] first;
             try {
-                first = outboundQueue.take();
+                first = outboundQueue.get().take();
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
-                break;
+                return;
             }
 
             List<byte[]> batch = new ArrayList<>();
             batch.add(first);
-            outboundQueue.drainTo(batch);
+            outboundQueue.get().drainTo(batch);
 
             synchronized (clients) {
-                Iterator<Map.Entry<SocketAddress, Long>> iterator = clients.entrySet().iterator();
-
-                while (iterator.hasNext()) {
-                    Map.Entry<SocketAddress, Long> entry = iterator.next();
+                long startTime = System.currentTimeMillis();
+                List<Map.Entry<SocketAddress, Long>> toRemove = new ArrayList<>();
+                clients.forEach((k, v) -> {
+                        toRemove.add(Map.entry(k, v));
+                });
+                for (byte[] packetData : batch) {
+                    if (packetData == null) {
+                        continue;
+                    }
+                int iterator = 0;
+                while (toRemove.size() > 0) {
+                    Map.Entry<SocketAddress, Long> entry = toRemove.get(iterator);
                     long lastActivityTime = entry.getValue();
                     long currentTime = System.currentTimeMillis();
 
-                    if (currentTime - lastActivityTime > INACTIVITY_TIMEOUT) {
+                    if (currentTime - (currentTime - startTime) - lastActivityTime > INACTIVITY_TIMEOUT) {
                         SocketAddress inactiveClient = entry.getKey();
-                        iterator.remove();
+                        clients.remove(entry.getKey());
                         System.out.println("Removed inactive client: " + inactiveClient);
                     } else {
-                        for (byte[] packetData : batch) {
-                            if (packetData == null) {
-                                continue;
+                        // Determine packet type
+                        int type;
+                        if (packetData.length <= AudioCall.NETWORK_BUFFER_SIZE) {
+                            type = DatagramType.AUDIO.getValue();
+                        } else if (packetData.length <= VideoCall.NETWORK_BUFFER_SIZE) {
+                            type = DatagramType.VIDEO.getValue();
+                        } else {
+                            type = DatagramType.UNKNOWN.getValue();
+                        }
+                        
+                        try {
+                            if (DEBUG_PACKET_TYPE) {
+                                System.out.println("[CallServer][SEND] to=" + entry.getKey() + " type=" + type + " (" + typeToLabel(type) + ") payload=" + packetData.length);
                             }
-                            
-                            // Determine packet type
-                            int type;
-                            if (packetData.length <= AudioCall.NETWORK_BUFFER_SIZE) {
-                                type = DatagramType.AUDIO.getValue();
-                            } else if (packetData.length <= VideoCall.NETWORK_BUFFER_SIZE) {
-                                type = DatagramType.VIDEO.getValue();
-                            } else {
-                                type = DatagramType.UNKNOWN.getValue();
-                            }
-                            
-                            try {
-                                if (DEBUG_PACKET_TYPE) {
-                                    System.out.println("[CallServer][SEND] to=" + entry.getKey() + " type=" + type + " (" + typeToLabel(type) + ") payload=" + packetData.length);
-                                }
-                                docket.send(new DatagramPacket(packetData, packetData.length, entry.getKey()));
-                            } catch (IOException e) {
-                                System.out.println("Error sending packet to " + entry.getKey() + ": " + e.getMessage());
-                            }
+                            docket.send(new DatagramPacket(packetData, packetData.length, entry.getKey()));
+                        } catch (IOException e) {
+                            System.out.println("Error sending packet to " + entry.getKey() + ": " + e.getMessage());
                         }
                     }
+                }
                 }
             }
         }
     }
 
     private void receiveAudio(byte[] data) {
-        if (audioCall != null) {
-            audioCall.offer(data);
+        audioLock.lock();
+        try {
+            if (audioCall != null) {
+                audioCall.offer(data);
+            }
+        } finally {
+            audioLock.unlock();
         }
     }
 
     private void receiveVideo(byte[] data) {
-        if (videoCall != null) {
-            videoCall.offer(data);
+        videoLock.lock();
+        try {
+            if (videoCall != null) {
+                videoCall.offer(data);
+            }
+        } finally {
+            videoLock.unlock();
         }
     }
 
@@ -264,11 +317,21 @@ public class CallServer extends CallObj implements AutoCloseable {
     @Override
     public void stop() {
         this.running = false;
-        if (audioCall != null) {
-            audioCall.stop();
+        audioLock.lock();
+        try {
+            if (audioCall != null) {
+                audioCall.stop();
+            }
+        } finally {
+            audioLock.unlock();
         }
-        if (videoCall != null) {
-            videoCall.stop();
+        videoLock.lock();
+        try {
+            if (videoCall != null) {
+                videoCall.stop();
+            }
+        } finally {
+            videoLock.unlock();
         }
 
         

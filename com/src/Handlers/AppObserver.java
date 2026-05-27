@@ -50,6 +50,25 @@ public class AppObserver {
     public ChatObj getCurrentChat() {
         return currentChat;
     }
+    public void stopCurrentChat() {
+        if (currentChat != null) {
+            Thread t = new Thread(() -> {currentChat.stop(); zeroOutCurrentChat();});
+            t.start();
+        }
+    }
+    public void zeroOutCurrentChat() {
+        currentChat = null;
+    }
+    public void stopCurrentCall() {
+        if (currentCall != null) {
+            //isolate from UI thread
+            Thread t = new Thread(() -> {currentCall.stop(); zeroOutCurrentCall();});
+            t.start();
+        }
+    }
+    public void zeroOutCurrentCall() {
+        currentCall = null;
+    }
     public CallObj getCurrentCall() {
         return currentCall;
     }
@@ -61,6 +80,8 @@ public class AppObserver {
     public void openIncomingChat() {
         if (this.currentChat == null) {
             this.currentChat = new Server();
+            //Should this be on the main thread? Not sure about visibility for now
+            this.currentChat.start();
         }
         else {
             if (DEBUG_MODE) {
@@ -71,6 +92,8 @@ public class AppObserver {
     public void openOutgoingChat(InetAddress address, int port) {
         if (this.currentChat == null) {
             this.currentChat = new Client(address, port);
+            //Should this be on the main thread? Not sure about visibility for now
+            this.currentChat.start();
         }
         else {
             if (DEBUG_MODE) {
@@ -81,6 +104,8 @@ public class AppObserver {
     public void openIncomingCall() {
         if (this.currentCall == null) {
             this.currentCall = new CallServer();
+            //This method just dispatches threads
+            this.currentCall.start();
         }
         else {
             if (DEBUG_MODE) {
@@ -92,6 +117,8 @@ public class AppObserver {
     public void openOutgoingCall(String address, int port) {
         if (this.currentCall == null) {
             this.currentCall = new CallClient(address, port);
+            //This method just dispatches threads
+            this.currentCall.start();
         }
         else {
             if (DEBUG_MODE) {

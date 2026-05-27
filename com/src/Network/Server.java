@@ -151,7 +151,10 @@ public class Server extends ChatObj implements AutoCloseable {
     }
 
     public Server() {
-        
+    }
+
+    @Override
+    public void start() {
         try {
             this.ADDRESS = getAddress(); // Use localhost for testing
             this.socket = new ServerSocket(50000, 50, this.ADDRESS);
@@ -186,7 +189,6 @@ public class Server extends ChatObj implements AutoCloseable {
             System.out.println("Failed to initialize server info" + h.getMessage());
         }
     }
-
 
     public Server(ServerCache cache) {
         try {
@@ -301,7 +303,7 @@ public class Server extends ChatObj implements AutoCloseable {
 
     @Override
     public void close() {
-        closeServer();
+        stop();
     }
 
     @Override
@@ -332,8 +334,8 @@ public class Server extends ChatObj implements AutoCloseable {
         System.out.println("Failed to bind a network interface");
         return null;
     }
-
-    public void closeServer() {
+    @Override
+    public void stop() {
         running = false;
         //Do I need to close all clients?
         try {

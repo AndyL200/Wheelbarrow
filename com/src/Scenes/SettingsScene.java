@@ -133,6 +133,8 @@ public class SettingsScene extends AppScene {
         darkMode.getStyleClass().add("settings-radio");
 
         themeGroup.selectedToggleProperty().addListener((obs, old, nw) -> {
+            if (old == nw || nw == null) {return;}
+            System.out.println("[Scenes.SettingsScene] Theme toggle");
             ThemeManager.getInstance().switchDarkMode();
         });
 

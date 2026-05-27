@@ -5,6 +5,7 @@
 .root {
     -fx-background-color: #1E1E1E;
     -fx-text-fill: #E0E0E0;
+    -fx-font-family: "Segoe UI", "Helvetica Neue", sans-serif;
 }
 
 .chat-comp {
@@ -13,33 +14,35 @@
 
 .navbar {
     -fx-background-color: #2D2D2D;
-    -fx-border-color: #424242;
+    -fx-border-color: #3F3F3F;
     -fx-border-width: 0 0 1 0;
-    -fx-padding: 10px;
-    -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.4), 2, 0, 0, 1);
+    -fx-padding: 12px 16px;
+    -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.6), 3, 0.0, 0, 2);
 }
 
 .server-title-label {
     -fx-font-size: 16px;
     -fx-font-weight: bold;
     -fx-text-fill: #E0E0E0;
+    -fx-letter-spacing: 0.5;
 }
 
 .sidebar-style {
     -fx-background-color: #2D2D2D;
-    -fx-border-color: #424242;
+    -fx-border-color: #3F3F3F;
     -fx-border-width: 0 1 0 0;
 }
 
 .server-entry {
-    -fx-padding: 12px;
+    -fx-padding: 14px 16px;
     -fx-background-color: transparent;
     -fx-text-fill: #B0B0B0;
     -fx-font-size: 13px;
+    -fx-font-family: "Segoe UI", sans-serif;
 }
 
 .server-entry:hover {
-    -fx-background-color: #373737;
+    -fx-background-color: #383838;
     -fx-text-fill: #E0E0E0;
 }
 
@@ -55,54 +58,59 @@
     -fx-text-fill: #E0E0E0;
     -fx-font-size: 13px;
     -fx-wrap-text: true;
+    -fx-line-spacing: 2;
 }
 
 .message-time {
-    -fx-text-fill: #757575;
+    -fx-text-fill: #808080;
     -fx-font-size: 11px;
+    -fx-font-style: italic;
 }
 
 .send-box {
     -fx-background-color: #2D2D2D;
-    -fx-border-color: #424242;
+    -fx-border-color: #3F3F3F;
     -fx-border-width: 1 0 0 0;
-    -fx-padding: 12px;
-    -fx-spacing: 8px;
+    -fx-padding: 16px;
+    -fx-spacing: 10px;
 }
 
 .msg-input {
-    -fx-pref-height: 40;
-    -fx-padding: 8px 12px;
-    -fx-background-color: #373737;
+    -fx-pref-height: 42;
+    -fx-padding: 10px 14px;
+    -fx-background-color: #383838;
     -fx-text-fill: #E0E0E0;
-    -fx-prompt-text-fill: #757575;
-    -fx-border-color: #424242;
-    -fx-border-radius: 6;
-    -fx-background-radius: 6;
+    -fx-prompt-text-fill: #808080;
+    -fx-border-color: #4F4F4F;
+    -fx-border-radius: 8;
+    -fx-background-radius: 8;
     -fx-border-width: 1;
     -fx-font-size: 13px;
+    -fx-font-family: "Segoe UI", sans-serif;
 }
 
 .msg-input:focused {
     -fx-border-color: #64B5F6;
     -fx-border-width: 2;
-    -fx-background-color: #3f3f3f;
+    -fx-background-color: #424242;
 }
 
 .send-btn {
-    -fx-padding: 8px 16px;
+    -fx-padding: 10px 20px;
     -fx-background-color: #64B5F6;
     -fx-text-fill: #1E1E1E;
     -fx-font-size: 13px;
     -fx-font-weight: bold;
-    -fx-background-radius: 6;
-    -fx-border-radius: 6;
+    -fx-background-radius: 8;
+    -fx-border-radius: 8;
     -fx-cursor: hand;
-    -fx-pref-width: 60;
+    -fx-pref-width: 70;
+    -fx-effect: dropshadow(gaussian, rgba(100,181,246,0.25), 3, 0.0, 0, 1);
 }
 
 .send-btn:hover {
     -fx-background-color: #81D4FA;
+    -fx-effect: dropshadow(gaussian, rgba(129,212,250,0.35), 4, 0.0, 0, 2);
 }
 
 .send-btn:pressed {
@@ -115,8 +123,8 @@
 }
 
 .audio-call-btn {
-    -fx-pref-width: 36;
-    -fx-pref-height: 36;
+    -fx-pref-width: 40;
+    -fx-pref-height: 40;
     -fx-padding: 0;
     -fx-background-color: #64B5F6;
     -fx-text-fill: #1E1E1E;
@@ -124,21 +132,25 @@
     -fx-background-radius: 50%;
     -fx-border-radius: 50%;
     -fx-cursor: hand;
-    -fx-effect: dropshadow(gaussian, rgba(100,181,246,0.3), 4, 0, 0, 2);
+    -fx-effect: dropshadow(gaussian, rgba(100,181,246,0.3), 4, 0.0, 0, 2);
 }
 
 .audio-call-btn:hover {
     -fx-background-color: #81D4FA;
-    -fx-effect: dropshadow(gaussian, rgba(129,212,250,0.4), 6, 0, 0, 3);
+    -fx-effect: dropshadow(gaussian, rgba(129,212,250,0.4), 6, 0.0, 0, 3);
+    -fx-scale-x: 1.05;
+    -fx-scale-y: 1.05;
 }
 
 .audio-call-btn:pressed {
     -fx-background-color: #42A5F5;
+    -fx-scale-x: 0.95;
+    -fx-scale-y: 0.95;
 }
 
 .video-call-btn {
-    -fx-pref-width: 36;
-    -fx-pref-height: 36;
+    -fx-pref-width: 40;
+    -fx-pref-height: 40;
     -fx-padding: 0;
     -fx-background-color: #64B5F6;
     -fx-text-fill: #1E1E1E;
@@ -146,21 +158,25 @@
     -fx-background-radius: 50%;
     -fx-border-radius: 50%;
     -fx-cursor: hand;
-    -fx-effect: dropshadow(gaussian, rgba(100,181,246,0.3), 4, 0, 0, 2);
+    -fx-effect: dropshadow(gaussian, rgba(100,181,246,0.3), 4, 0.0, 0, 2);
 }
 
 .video-call-btn:hover {
     -fx-background-color: #81D4FA;
-    -fx-effect: dropshadow(gaussian, rgba(129,212,250,0.4), 6, 0, 0, 3);
+    -fx-effect: dropshadow(gaussian, rgba(129,212,250,0.4), 6, 0.0, 0, 3);
+    -fx-scale-x: 1.05;
+    -fx-scale-y: 1.05;
 }
 
 .video-call-btn:pressed {
     -fx-background-color: #42A5F5;
+    -fx-scale-x: 0.95;
+    -fx-scale-y: 0.95;
 }
 
 .disconnect-btn {
-    -fx-pref-width: 36;
-    -fx-pref-height: 36;
+    -fx-pref-width: 40;
+    -fx-pref-height: 40;
     -fx-padding: 0;
     -fx-background-color: #FF6B6B;
     -fx-text-fill: #FFFFFF;
@@ -168,16 +184,20 @@
     -fx-background-radius: 50%;
     -fx-border-radius: 50%;
     -fx-cursor: hand;
-    -fx-effect: dropshadow(gaussian, rgba(255,107,107,0.3), 4, 0, 0, 2);
+    -fx-effect: dropshadow(gaussian, rgba(255,107,107,0.3), 4, 0.0, 0, 2);
 }
 
 .disconnect-btn:hover {
     -fx-background-color: #FF5252;
-    -fx-effect: dropshadow(gaussian, rgba(255,82,82,0.4), 6, 0, 0, 3);
+    -fx-effect: dropshadow(gaussian, rgba(255,82,82,0.4), 6, 0.0, 0, 3);
+    -fx-scale-x: 1.05;
+    -fx-scale-y: 1.05;
 }
 
 .disconnect-btn:pressed {
     -fx-background-color: #E53935;
+    -fx-scale-x: 0.95;
+    -fx-scale-y: 0.95;
 }
 
 .message-area {
@@ -194,8 +214,227 @@
 }
 
 .message-area .scroll-bar:vertical .thumb {
-    -fx-background-color: #555555;
+    -fx-background-color: #5A5A5A;
     -fx-background-radius: 5;
+}
+
+.message-area .scroll-bar:vertical .thumb:hover {
+    -fx-background-color: #707070;
+}
+
+.message-area .scroll-bar:vertical .increment-button,
+.message-area .scroll-bar:vertical .decrement-button {
+    -fx-padding: 0;
+}
+
+/* ─────────────────────────────────────────────────────────────────────────── */
+/* AUDIO/VIDEO CALL OVERLAY STYLES */
+/* ─────────────────────────────────────────────────────────────────────────── */
+
+.audio-call-comp {
+    -fx-background-color: #0A0A0A;
+    -fx-padding: 0;
+}
+
+.audio-call-container {
+    -fx-background-color: #0A0A0A;
+    -fx-padding: 20px;
+    -fx-spacing: 10px;
+}
+
+.audio-call-users {
+    -fx-background-color: transparent;
+    -fx-padding: 10px;
+}
+
+.audio-user-placeholder {
+    -fx-background-color: #1E1E1E;
+    -fx-border-color: #3F3F3F;
+    -fx-border-width: 1;
+    -fx-border-radius: 8;
+    -fx-background-radius: 8;
+    -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.6), 4, 0.0, 0, 2);
+}
+
+.audio-user-label {
+    -fx-text-fill: #E0E0E0;
+    -fx-font-size: 14px;
+    -fx-font-weight: bold;
+}
+
+.audio-call-controls {
+    -fx-background-color: rgba(30, 30, 30, 0.95);
+    -fx-border-color: #3F3F3F;
+    -fx-border-width: 1 0 0 0;
+    -fx-padding: 16px;
+    -fx-spacing: 15px;
+}
+
+.audio-control-btn {
+    -fx-pref-width: 100;
+    -fx-pref-height: 44;
+    -fx-padding: 10px 20px;
+    -fx-background-color: #64B5F6;
+    -fx-text-fill: #1E1E1E;
+    -fx-font-size: 13px;
+    -fx-font-weight: bold;
+    -fx-background-radius: 8;
+    -fx-border-radius: 8;
+    -fx-cursor: hand;
+    -fx-effect: dropshadow(gaussian, rgba(100,181,246,0.25), 3, 0.0, 0, 1);
+}
+
+.audio-control-btn:hover {
+    -fx-background-color: #81D4FA;
+    -fx-effect: dropshadow(gaussian, rgba(129,212,250,0.35), 4, 0.0, 0, 2);
+}
+
+.audio-control-btn:pressed {
+    -fx-background-color: #42A5F5;
+}
+
+.audio-end-call-btn {
+    -fx-pref-width: 120;
+    -fx-pref-height: 44;
+    -fx-padding: 10px 20px;
+    -fx-background-color: #FF6B6B;
+    -fx-text-fill: #FFFFFF;
+    -fx-font-size: 13px;
+    -fx-font-weight: bold;
+    -fx-background-radius: 8;
+    -fx-border-radius: 8;
+    -fx-cursor: hand;
+    -fx-effect: dropshadow(gaussian, rgba(255,107,107,0.3), 3, 0.0, 0, 1);
+}
+
+.audio-end-call-btn:hover {
+    -fx-background-color: #FF5252;
+    -fx-effect: dropshadow(gaussian, rgba(255,82,82,0.4), 4, 0.0, 0, 2);
+}
+
+.audio-end-call-btn:pressed {
+    -fx-background-color: #E53935;
+}
+
+.audio-exit-btn {
+    -fx-pref-width: 80;
+    -fx-pref-height: 44;
+    -fx-padding: 10px 16px;
+    -fx-background-color: #757575;
+    -fx-text-fill: #FFFFFF;
+    -fx-font-size: 13px;
+    -fx-font-weight: bold;
+    -fx-background-radius: 8;
+    -fx-border-radius: 8;
+    -fx-cursor: hand;
+    -fx-effect: dropshadow(gaussian, rgba(117,117,117,0.3), 3, 0.0, 0, 1);
+}
+
+.audio-exit-btn:hover {
+    -fx-background-color: #616161;
+    -fx-effect: dropshadow(gaussian, rgba(97,97,97,0.4), 4, 0.0, 0, 2);
+}
+
+.audio-exit-btn:pressed {
+    -fx-background-color: #424242;
+}
+
+/* ─────────────────────────────────────────────────────────────────────────── */
+/* SERVER OVERLAY STYLES */
+/* ─────────────────────────────────────────────────────────────────────────── */
+
+.add-server-overlay {
+    -fx-background-color: transparent;
+}
+
+.add-server-dark-bg {
+    -fx-background-color: rgba(0, 0, 0, 0.7);
+}
+
+.add-server-content {
+    -fx-background-color: #2D2D2D;
+    -fx-border-color: #424242;
+    -fx-border-width: 1;
+    -fx-border-radius: 12;
+    -fx-background-radius: 12;
+    -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.4), 8, 0.0, 0, 4);
+    -fx-padding: 20px;
+}
+
+.add-server-exit-circle {
+    -fx-fill: #383838;
+    -fx-stroke: #4F4F4F;
+    -fx-stroke-width: 1;
+}
+
+.add-server-exit-circle:hover {
+    -fx-fill: #E53935;
+    -fx-stroke: #C62828;
+}
+
+.add-server-exit-label {
+    -fx-text-fill: #B0B0B0;
+    -fx-font-size: 16px;
+    -fx-font-weight: bold;
+}
+
+.add-server-exit-circle:hover .add-server-exit-label {
+    -fx-text-fill: #FFFFFF;
+}
+
+.add-server-title {
+    -fx-font-size: 20px;
+    -fx-font-weight: bold;
+    -fx-text-fill: #E0E0E0;
+    -fx-padding: 0 0 10 0;
+}
+
+.add-server-label {
+    -fx-font-size: 13px;
+    -fx-text-fill: #B0B0B0;
+    -fx-font-weight: 500;
+}
+
+.add-server-submit-btn {
+    -fx-padding: 12px 24px;
+    -fx-background-color: #64B5F6;
+    -fx-text-fill: #1E1E1E;
+    -fx-font-size: 13px;
+    -fx-font-weight: bold;
+    -fx-background-radius: 8;
+    -fx-border-radius: 8;
+    -fx-cursor: hand;
+    -fx-effect: dropshadow(gaussian, rgba(100,181,246,0.25), 3, 0.0, 0, 1);
+}
+
+.add-server-submit-btn:hover {
+    -fx-background-color: #81D4FA;
+    -fx-effect: dropshadow(gaussian, rgba(129,212,250,0.35), 4, 0.0, 0, 2);
+}
+
+.add-server-submit-btn:pressed {
+    -fx-background-color: #42A5F5;
+}
+
+.add-server-create-btn {
+    -fx-padding: 12px 24px;
+    -fx-background-color: #66BB6A;
+    -fx-text-fill: #1E1E1E;
+    -fx-font-size: 13px;
+    -fx-font-weight: bold;
+    -fx-background-radius: 8;
+    -fx-border-radius: 8;
+    -fx-cursor: hand;
+    -fx-effect: dropshadow(gaussian, rgba(102,187,106,0.25), 3, 0.0, 0, 1);
+}
+
+.add-server-create-btn:hover {
+    -fx-background-color: #81C784;
+    -fx-effect: dropshadow(gaussian, rgba(129,199,132,0.35), 4, 0.0, 0, 2);
+}
+
+.add-server-create-btn:pressed {
+    -fx-background-color: #4CAF50;
 }
 
 .message-area .scroll-bar:vertical .thumb:hover {

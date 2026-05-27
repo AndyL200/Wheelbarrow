@@ -5,7 +5,7 @@ import java.util.function.Consumer;
 
 import Components.Message;
 
-public class ChatObj implements Chat {
+public abstract class ChatObj implements Chat {
 
     public void send(byte[] message) {};
     public void send(Message message) {};
@@ -14,4 +14,6 @@ public class ChatObj implements Chat {
     public InetAddress getAddress() { return null; };
     public void setOnMessageReceived(Consumer<Message> onMessageReceived) {};
     public ServerInfo getInfo() { return null; };
+    public void stop() {};
+    public void start() {};
 }

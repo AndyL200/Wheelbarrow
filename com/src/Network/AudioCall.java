@@ -117,7 +117,7 @@ public interface AudioCall extends Call {
 
     
     public static final AudioFormat COMMON_NETWORK_FORMAT = new AudioFormat(48000f, 16, 1, true, false);
-    public static final int NETWORK_BUFFER_SIZE = getBufferSize(COMMON_NETWORK_FORMAT, 50); // 50ms of audio per packet
+    public static final int NETWORK_BUFFER_SIZE = getBufferSize(COMMON_NETWORK_FORMAT, 50); // 10ms of audio per packet
     public void setMic(Mixer.Info mixerInfo);
     public void setSpeaker(Mixer.Info mixerInfo);
 

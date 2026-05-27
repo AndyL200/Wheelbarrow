@@ -94,12 +94,13 @@ public class ChatComp extends StackPane{
 
             if ((message.type & MessageType.AUDIO_HOST.getValue()) > 0) {
                 CallConfig config = CallConfig.fromBytes(message.messageData);
-                if (message.sender.equals(profile.getUser().getUsername()) || config.HOSTNAME.equals(profile.getUser().getUsername())) { return; }
+                //if (config.HOSTNAME.equals(profile.getUser().getUsername())) { return; }
                 chatNav.addAvailableCall(config);
                 return;
             }
     }
     public void addMessage(Message message) {
+        
         if ((message.type & MessageType.TYPING.getValue()) > 0) {
             //handle typing
             ChatBox box = (ChatBox) this.scrollChat.getContent();
@@ -174,6 +175,7 @@ public class ChatComp extends StackPane{
 
     //start with an audio call, video is optional
     private void toggleAudioCall(CallConfig config) {
+        System.out.println("[ChatComp] toggleAudioCall called with config: " + (config != null ? config.HOSTNAME + ":" + config.PORT : "null"));
         LocalProfile profile = AppObserver.getInstance().getLocalProfile();
         if (this.callComp == null) {
             this.callComp = new CallComp();
@@ -188,11 +190,12 @@ public class ChatComp extends StackPane{
                     System.out.println("Failed to get server config, cannot start audio call");
                 }
                 else {
+                    //TCP Message to allow UDP communication for the call
                     sendMessage(new Message(profile.getUser().getUsername(), serverConfig, MessageType.AUDIO_HOST.getValue()));
                 }
             }
             else {
-                AppObserver.getInstance().openOutgoingCall(config.HOSTNAME, config.PORT);
+                AppObserver.getInstance().openOutgoingCall(config.HOST, config.PORT);
                 CallClient client = (CallClient) AppObserver.getInstance().getCurrentCall();
                 client.openAudioCall();
             }

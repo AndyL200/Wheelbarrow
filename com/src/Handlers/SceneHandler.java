@@ -19,6 +19,7 @@ public class SceneHandler {
 
     private static final String SERVER_LIST_PATH;
     static {
+        //just use a resources?
         Path p = Paths.get("").toAbsolutePath();
         Path filePath = p.resolve("com").resolve("temp_server_list").resolve("server_list.json");
         SERVER_LIST_PATH = filePath.toString();
@@ -31,7 +32,9 @@ public class SceneHandler {
         this.currentScene = scene;
         ThemeManager.getInstance().applySceneTheme(scene);
         this.stage.setScene(scene);
-        if (scene instanceof ChatScene) handleChat();
+        if (scene instanceof ChatScene) {
+            handleChat();
+        }
     }
 
     /** Call once at app startup. Throws if called again. */

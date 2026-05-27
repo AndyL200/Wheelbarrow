@@ -52,14 +52,14 @@ public class AudioCallServer implements AudioCall, AutoCloseable {
     private volatile Thread consumeThread;
 
     //[LOCK]
-    ReentrantLock micLock = new ReentrantLock();
-    ReentrantLock spkrLock = new ReentrantLock();
+    private volatile ReentrantLock micLock = new ReentrantLock();
+    private volatile ReentrantLock spkrLock = new ReentrantLock();
     
     //[CALLBACK]
     private volatile Consumer<byte[]> onAudioSupply;
 
     //[JITTER]
-    private AtomicReference<BlockingQueue<byte[]>> jitterQueue = new AtomicReference<>(new LinkedBlockingQueue<>(20)); // ~1 second at 50ms packets
+    private AtomicReference<BlockingQueue<byte[]>> jitterQueue = new AtomicReference<>(new LinkedBlockingQueue<>(100));
 
     public AudioCallServer() {
         // Routing handled by CallServer
@@ -70,45 +70,21 @@ public class AudioCallServer implements AudioCall, AutoCloseable {
         if (running) return; // Prevent multiple starts  
         running = true;
 
-        Thread oldSupplyThread = null;
-        Thread oldConsumeThread = null;
-        boolean acquired = false;
-        boolean micReady = false;
-        boolean spkrReady = false;
+        micLock.lock();
         try {
-            micLock.lock();
-            acquired = true;
-            oldSupplyThread = supplyThread;
             micFmt = AudioCall.getBestFormat(null, TargetDataLine.class); // Use default mixer
             mic = AudioSystem.getTargetDataLine(micFmt);
             mic.open(micFmt);
             mic.start();
-            micReady = true;
         } catch (LineUnavailableException lue) {
             //[LUE]
             System.out.println("Error initializing audio devices: " + lue.getMessage());
         } finally {
-            if (acquired) {
-                micLock.unlock();
-            }
-            // Stop thread outside the lock
-            if (oldSupplyThread != null) {
-                stopThread(oldSupplyThread);     
-            } 
-            if (micReady) {
-                this.supplyThread = new Thread(this::audioSupplier);
-                this.supplyThread.setDaemon(true);
-                this.supplyThread.start();
-            }
+            micLock.unlock();
         }
-        acquired = false;
-        try {
             spkrLock.lock();
-            if (DEBUG_MODE && CONCURRENCY) {
-                System.out.println("[AudioCallServer.start] spkrLock acquired");
-            }
-            acquired = true;
-            oldConsumeThread = consumeThread;
+        try {
+            
             speakerFmt = AudioCall.getBestFormat(null, SourceDataLine.class); // Use default mixer
             speaker = AudioSystem.getSourceDataLine(speakerFmt);
             speaker.open(speakerFmt);
@@ -119,62 +95,45 @@ public class AudioCallServer implements AudioCall, AutoCloseable {
             for (int i = 0; i < 3; i++) {
                 jitterQueue.get().offer(silence);
             }   
-            spkrReady = true;
         } catch (LineUnavailableException lue) {
             System.out.println("Error initializing speaker: " + lue.getMessage());
         } finally {
-            if (acquired) {
                 spkrLock.unlock();
-            }
-            if (oldConsumeThread != null) {
-                stopThread(oldConsumeThread);
-            }
-            if (spkrReady) {
-                this.consumeThread = new Thread(this::consumeAudio);
-                this.consumeThread.setDaemon(true);
-                this.consumeThread.start();
-            }
         }
+
+        this.supplyThread = new Thread(this::supplyAudio);
+        this.supplyThread.setDaemon(true);
+        this.supplyThread.start();
+
+        this.consumeThread = new Thread(this::consumeAudio);
+        this.consumeThread.setDaemon(true);
+        this.consumeThread.start();
     }
     @Override
     public void stop() {
         running = false;
-        stopThread(this.consumeThread);
         stopThread(this.supplyThread);
-        boolean acquired = false;
+        stopThread(this.consumeThread);
 
         //close mic
         micLock.lock();
-        acquired = true;
-        if (DEBUG_MODE && CONCURRENCY) {
-            System.out.println("[AudioCallServer.stop] micLock acquired");
-        }
-        if (mic != null) {
-            mic.stop();
-            mic.close();
-        }
-        if (acquired) {
-            micLock.unlock();
-            if (DEBUG_MODE && CONCURRENCY) {
-                System.out.println("[AudioCallServer.stop] releasing micLock");
+        try {
+            if (mic != null) {
+                mic.stop();
+                mic.close();
             }
+        } finally {
+            micLock.unlock();
         }
 
-        acquired = false;
         spkrLock.lock();
-        acquired = true;
-        if (DEBUG_MODE && CONCURRENCY) {
-            System.out.println("[AudioCallServer.stop] spkrLock acquired");
-        }
-        if (speaker != null) {
-            speaker.stop();
-            speaker.close();
-        }
-        if (acquired) {
-            spkrLock.unlock();
-            if (DEBUG_MODE && CONCURRENCY) {
-                System.out.println("[AudioCallServer.stop] releasing spkrLock");
+        try {
+            if (speaker != null) {
+                speaker.stop();
+                speaker.close();
             }
+        } finally {
+            spkrLock.unlock();
         }
     }
 
@@ -201,55 +160,86 @@ public class AudioCallServer implements AudioCall, AutoCloseable {
         }
     }
 
-    private void audioSupplier() {
+    //dispatch threads as needed, no more while (running) loops
+    private void consumeAudio() { 
         while (running) {
-            byte[] data;
-            int bytesRead = 0;
-            boolean acquired = false;
-            byte[] networkData = null;
             try {
-                micLock.lock();
-                acquired = true;
+                byte[] data = jitterQueue.get().take();
+                processAudio(data); 
+            } catch (InterruptedException i) {
+                //[Interrupt]
                 if (DEBUG_MODE && CONCURRENCY) {
-                    System.out.println("[AudioCallServer.audioSupplier] micLock acquired");
+                    System.out.println("[AudioCallServer.consumeAudio] Interrupted while polling jitterQueue");
                 }
-                if (mic == null || !mic.isOpen()) {
-                    System.out.println("[AudioCallServer.audioSupplier] Microphone not ready, skipping audio supply");
-                    return;
-                }
-                // Read enough mic data to yield NETWORK_BUFFER_SIZE after conversion
-                int msToRead = getMillisForNetworkBuffer();
-                int MIC_BUFFER_SIZE = AudioCall.getBufferSize(micFmt, msToRead);
-                data = new byte[MIC_BUFFER_SIZE];
-                bytesRead = mic.read(data, 0, MIC_BUFFER_SIZE);
-                if (bytesRead > 0) {
-                    networkData = convertMicStream(Arrays.copyOf(data, bytesRead), micFmt);
-                }
-            } finally {
-                if (acquired) {
-                    if (DEBUG_MODE && CONCURRENCY) {
-                        System.out.println("[AudioCallServer.audioSupplier] Releasing micLock");
-                    }
-                    micLock.unlock();
-                }
-            }
-
-            if (bytesRead <= 0) {
-                continue;
-            }
-
-            
-            if (onAudioSupply != null && networkData != null) {
-                onAudioSupply.accept(networkData);
+                return;
             }
         }
     }
+    private void processAudio(byte[] data) {
+            spkrLock.lock();
+            try {
+                if (speaker == null || !speaker.isOpen()) {
+                    System.out.println("[AudioCallServer.consumeAudio] Speaker not ready, skipping audio consume");
+                    return;
+                }
+                byte[] speakerData = convertSpkrStream(data, speakerFmt);
+                if (speakerData == null) {
+                    // Queue ran dry — write silence to prevent underrun
+                    int silenceSize = AudioCall.getBufferSize(speakerFmt, getMillisForSpeakerBuffer());
+                    speakerData = new byte[silenceSize];
+                }
+                if (DEBUG_MODE) {
+                    System.out.println("[AudioCallServer.consumeAudio] Writing to speaker with buffer size: " + speakerData.length);
+                }
+                speaker.write(speakerData, 0, speakerData.length);
+            } finally {
+                spkrLock.unlock();
+            }
+    }
+
+    private void supplyAudio() throws NullPointerException {
+        while (running) {
+            micLock.lock();
+            try {
+                byte[] data;
+                int bytesRead = 0;
+                byte[] networkData = null;
+
+                //System.out.println("2");
+                int MIC_BUFFER_SIZE = AudioCall.NETWORK_BUFFER_SIZE;
+                //System.out.println("3");
+                data = new byte[MIC_BUFFER_SIZE];
+                if (mic == null || !mic.isOpen()) {
+                    System.out.println("[AudioCallServer.supplyAudio] Microphone not ready, skipping audio supply");
+                    return;
+                }
+                if (DEBUG_MODE) {
+                    System.out.println("[AudioCallServer.supplyAudio] Reading from microphone with buffer size: " + MIC_BUFFER_SIZE);
+                }
+                bytesRead = mic.read(data, 0, MIC_BUFFER_SIZE); //should be the bottleneck
+                if (bytesRead > 0) {
+                    networkData = convertMicStream(Arrays.copyOf(data, bytesRead), micFmt);
+                    if (onAudioSupply != null && networkData != null) {
+                        onAudioSupply.accept(networkData);
+                    }
+                }
+            } finally {
+                micLock.unlock();
+            }
+        }
+    }
+
 
     public void setOnAudioSupply(Consumer<byte[]> onAudioSupply) {
         this.onAudioSupply = onAudioSupply;
     }
     @Override
     public void setMic(Mixer.Info mixerInfo) {
+        //dispatch a thread to keep this off the UI thread
+        Thread t = new Thread(() -> micChange(mixerInfo));
+        t.start();
+    }
+    private void micChange(Mixer.Info mixerInfo) {
         if (!running) {
             System.out.println("Cannot set microphone - audio call not running");
             return;
@@ -257,9 +247,6 @@ public class AudioCallServer implements AudioCall, AutoCloseable {
         if (DEBUG_MODE) {
             System.out.println("[AudioCallServer] setMic() called with " + (mixerInfo == null ? "default" : mixerInfo.getName()));
         }
-        Thread oldSupplyThread = null;
-        boolean acquired = false;
-        boolean micReady = false;
         try {
             if (DEBUG_MODE && CONCURRENCY) {
                 System.out.println("[AudioCallServer] Acquiring micLock...");
@@ -268,8 +255,6 @@ public class AudioCallServer implements AudioCall, AutoCloseable {
             if (DEBUG_MODE && CONCURRENCY) {
                 System.out.println("[AudioCallServer] Got micLock");
             }
-            acquired = true;
-            oldSupplyThread = supplyThread;
             micFmt = AudioCall.getBestFormat(mixerInfo, TargetDataLine.class);
             try {
                 if (DEBUG_MODE) {
@@ -296,7 +281,6 @@ public class AudioCallServer implements AudioCall, AutoCloseable {
                         System.out.println("[AudioCallServer] Starting microphone...");
                     }
                     mic.start();
-                    micReady = true;
                     if (mixerInfo != null) {
                         System.out.println("Microphone set to: " + mixerInfo.getName());
                     } else {
@@ -309,7 +293,7 @@ public class AudioCallServer implements AudioCall, AutoCloseable {
                     if (mixerInfo != null) {
                         System.out.println("Failed to set microphone: " + mixerInfo.getName());
                     } else {
-                        System.out.println("Failed to set microphone: " + mic.getLineInfo().toString());
+                        System.out.println("Failed to set microphone: " + mic.getLineInfo());
                     }
                 }
             } catch (LineUnavailableException lue) {
@@ -319,24 +303,19 @@ public class AudioCallServer implements AudioCall, AutoCloseable {
                 }
             }
         } finally {
-            if (acquired) {
                 if (DEBUG_MODE && CONCURRENCY) {
                     System.out.println("[AudioCallServer.setMic] Releasing micLock");
                 }
                 micLock.unlock();
-            }
-             if (oldSupplyThread != null) {
-                 stopThread(oldSupplyThread);     
-             } 
-             if (micReady) {
-                 this.supplyThread = new Thread(this::audioSupplier);
-                 this.supplyThread.setDaemon(true);
-                 this.supplyThread.start();
-            }
         }
     }
     @Override
     public void setSpeaker(Mixer.Info mixerInfo) {
+        //dispatch a thread to keep this off the UI thread
+        Thread t = new Thread(() -> speakerChange(mixerInfo));
+        t.start();
+    }
+    private void speakerChange(Mixer.Info mixerInfo) {
         if (!running) {
             System.out.println("Cannot set speaker - audio call not running");
             return;
@@ -344,9 +323,7 @@ public class AudioCallServer implements AudioCall, AutoCloseable {
         if (DEBUG_MODE) {
             System.out.println("[AudioCallServer] setSpeaker() called with " + (mixerInfo == null ? "default" : mixerInfo.getName()));
         }
-        Thread oldConsumeThread = null;
         boolean acquired = false;
-        boolean spkrReady = false;
         try {
             if (DEBUG_MODE) {
                 System.out.println("[AudioCallServer] Acquiring spkrLock...");
@@ -359,7 +336,6 @@ public class AudioCallServer implements AudioCall, AutoCloseable {
                 System.out.println("[AudioCallServer] Got spkrLock");
             }
             acquired = true;
-            oldConsumeThread = consumeThread;
             speakerFmt = AudioCall.getBestFormat(mixerInfo, SourceDataLine.class);
             try {
                 if (DEBUG_MODE) {
@@ -386,7 +362,6 @@ public class AudioCallServer implements AudioCall, AutoCloseable {
                         System.out.println("[AudioCallServer] Starting speaker...");
                     }
                     speaker.start();
-                    spkrReady = true;
                     if (mixerInfo != null) {
                         System.out.println("Speaker set to: " + mixerInfo.getName());
                     } else {
@@ -415,74 +390,9 @@ public class AudioCallServer implements AudioCall, AutoCloseable {
                 }
                 spkrLock.unlock();
             }
-            if (oldConsumeThread != null) {
-                stopThread(oldConsumeThread);
-            }
-            if (spkrReady) {
-                this.consumeThread = new Thread(this::consumeAudio);
-                this.consumeThread.setDaemon(true);
-                this.consumeThread.start();
-            }
         }
         
     }
-
-    private void consumeAudio() { 
-        while (running) {
-            byte[] data = null;
-            try {
-                data = jitterQueue.get().poll(50, TimeUnit.MILLISECONDS);
-            } catch (InterruptedException i) {
-                //[Interrupt]
-                if (DEBUG_MODE && CONCURRENCY) {
-                    System.out.println("[AudioCallServer.consumeAudio] Interrupted while polling jitterQueue");
-                }
-                return;
-            }
-            if (data == null) {
-                continue;
-            }
-            
-            byte[] speakerData = null;
-            boolean acquired = false;
-            try {
-                spkrLock.lock();
-                if (DEBUG_MODE && CONCURRENCY) {
-                    System.out.println("[AudioCallServer.consumeAudio] spkrLock acquired");
-                }
-                acquired = true;
-
-                if (speaker == null || !speaker.isOpen()) {
-                    System.out.println("[AudioCallServer.consumeAudio] Speaker not ready, skipping audio consume");
-                    return;
-                }
-                speakerData = convertSpkrStream(data, speakerFmt);
-                if (speakerData == null) {
-                    // Queue ran dry — write silence to prevent underrun
-                    int silenceSize = AudioCall.getBufferSize(speakerFmt, getMillisForSpeakerBuffer());
-                    speakerData = new byte[silenceSize];
-                }
-                
-            } finally {
-                if (acquired) {
-                    if (DEBUG_MODE && CONCURRENCY) {
-                        System.out.println("[AudioCallServer.consumeAudio] Releasing spkrLock");
-                    }
-                    spkrLock.unlock();
-                }
-
-                try {
-                    if (speakerData != null) {
-                        speaker.write(speakerData, 0, speakerData.length);
-                    }
-                } catch (IllegalArgumentException iae) {
-                    System.out.println("Speaker write failed (likely device closed): " + iae.getMessage());
-                }
-            }
-        }
-    }
-
-    
 
     //Thread safe method
    //Convert FROM mic
@@ -545,11 +455,6 @@ public class AudioCallServer implements AudioCall, AutoCloseable {
         }
     }
 
-    private int getMillisForNetworkBuffer() {
-        int networkFrames = AudioCall.NETWORK_BUFFER_SIZE / AudioCall.COMMON_NETWORK_FORMAT.getFrameSize();
-        float ms = networkFrames / AudioCall.COMMON_NETWORK_FORMAT.getFrameRate() * 1000f;
-        return (int) ms;
-    }
 
     private int getMillisForSpeakerBuffer() {
         int networkFrames = AudioCall.NETWORK_BUFFER_SIZE / AudioCall.COMMON_NETWORK_FORMAT.getFrameSize();

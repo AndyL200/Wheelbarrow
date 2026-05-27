@@ -2,9 +2,9 @@ package Handlers;
 
 import java.io.IOException;
 import java.io.InputStream;
-import java.net.URL;
-import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
@@ -13,17 +13,13 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.WeakHashMap;
+import java.util.function.Consumer;
 import java.util.prefs.Preferences;
 
-import com.oracle.javafx.scenebuilder.kit.editor.EditorPlatform.Theme;
 
 import Components.Helper.SceneType;
 import Scenes.AppScene;
-import javafx.scene.Scene;
-import javafx.scene.image.Image;
 import javafx.application.Platform;
-import javafx.scene.Node;
-import javafx.scene.Parent;
 
 /**
  * ThemeManager — thread-safe singleton that manages light/dark theme switching.
@@ -40,6 +36,10 @@ public class ThemeManager {
     //System prefs allow styles to persist
     private static final Preferences prefs = Preferences.userRoot().node("wheelbarrow/appearance");
     private static volatile ThemeManager INSTANCE;
+    
+    // EventBus event names
+    public static final String STYLE_CHANGED_EVENT = "STYLES_CHANGED";
+    
     //JUST USE A GRAPH GODDAMN
     //sceneType -> {selector -> {style -> value}}
     private HashMap<Integer, HashMap<String, HashMap<String, String>>> dynamicStyles;
@@ -68,12 +68,12 @@ public class ThemeManager {
     private void init() {
         dynamicStyles = new HashMap<>();
         for (SceneType type : SceneType.values()) {
-            int sheet = type.getValue();
+            int sheet = type.getValue() | (isDarkTheme ? SceneType.DARK.getValue() : SceneType.LIGHT.getValue());
             HashMap<String, HashMap<String, String>> styles = parseStyleSheet(sheet);
             if (styles != null) {
                 dynamicStyles.put(sheet, styles);
             }
-            sheet = type.getValue();
+            sheet = type.getValue() | (isDarkTheme ? SceneType.LIGHT.getValue() : SceneType.DARK.getValue());
             styles = parseStyleSheet(sheet);
             if (styles != null) {
                 dynamicStyles.put(sheet, styles);
@@ -90,22 +90,22 @@ public class ThemeManager {
         } else {
             sceneType |= SceneType.LIGHT.getValue();
         }
-        HashMap<String, HashMap<String, String>> styles = dynamicStyles.get(sceneType);
-        if (styles != null) {
-            for (String selector : styles.keySet()) {
-                HashMap<String, String> properties = styles.get(selector);
-                StringBuilder css = new StringBuilder();
-                for (String property : properties.keySet()) {
-                    css.append(property).append(": ").append(properties.get(property)).append("; ");
-                }
-                scene.getStylesheets().add(selector + "{" + css.toString() + "}");
-            }
-        }
+        final int finalSceneType = sceneType;
+        scene.getStylesheets().add(createTempURI(finalSceneType));
+        //Apply the event bus listener for dynamic style changes
+        EventBus.unsubscribe(STYLE_CHANGED_EVENT);
+        EventBus.subscribe(ThemeManager.STYLE_CHANGED_EVENT, () -> {
+            Platform.runLater(() -> {
+                scene.getStylesheets().clear();
+                scene.getStylesheets().add(createTempURI(finalSceneType));
+            });
+        });
     }
 
     public void switchDarkMode() {
         isDarkTheme = !isDarkTheme;
         prefs.put("theme", isDarkTheme ? "DARK" : "LIGHT");
+        EventBus.publish(STYLE_CHANGED_EVENT);
     }
 
     public void setBackgroundColor(AppScene scene, String color) {
@@ -118,8 +118,10 @@ public class ThemeManager {
                     properties.put("-fx-background-color", color);
                 }
             }
+            EventBus.publish(STYLE_CHANGED_EVENT);
         }
     }
+    
     public void setGlobalBackground(String color) {
         for (int type : dynamicStyles.keySet()) {
             HashMap<String, HashMap<String, String>> styles = dynamicStyles.get(type);
@@ -130,6 +132,7 @@ public class ThemeManager {
                 }
             }
         }
+        EventBus.publish(STYLE_CHANGED_EVENT);
     }
 
     public void setBackgroundImage(AppScene scene, String url) {
@@ -142,6 +145,7 @@ public class ThemeManager {
                         properties.put("-fx-background-image", "url('" + url + "')");
                     }
                 }
+                EventBus.publish(STYLE_CHANGED_EVENT);
             }
     }
 
@@ -155,6 +159,7 @@ public class ThemeManager {
                 }
             }
         }
+        EventBus.publish(STYLE_CHANGED_EVENT);
     }
 
     public void clearBackground() {
@@ -170,6 +175,7 @@ public class ThemeManager {
                 }
             }
         }
+        EventBus.publish(STYLE_CHANGED_EVENT);
     }
 
     /** Add an additional stylesheet to a specific scene using ThemeManager's loader. */
@@ -182,34 +188,61 @@ public class ThemeManager {
                 style += key + ": " + kv.get(key) + "; ";
             }
             scene.getStylesheets().add(classname + "{" + style + "}");
+            EventBus.publish(STYLE_CHANGED_EVENT);
         }
+    }
+
+    private String createTempURI(int sceneType) {
+        if (dynamicStyles.containsKey(sceneType)) {
+            HashMap<String, HashMap<String, String>> styles = dynamicStyles.get(sceneType);
+            StringBuilder fullCss = new StringBuilder();
+            for (String selector : styles.keySet()) {
+                fullCss.append(selector).append(" { ");
+                styles.get(selector).forEach((k, v) ->
+                    fullCss.append(k).append(": ").append(v).append("; ")
+                );
+                fullCss.append("} ");
+            }
+            try {
+                Path tmp = Files.createTempFile("wheelbarrow-theme-", ".css");
+                tmp.toFile().deleteOnExit();
+                Files.writeString(tmp, fullCss.toString());
+                return tmp.toUri().toString();
+            } catch (IOException e) {
+                System.out.println("Failed to write theme CSS: " + e.getMessage());
+            }
+        }
+
+        return "";
+
     }
 
     //not sure if this is necessary
     private HashMap<String,HashMap<String, String>> parseStyleSheet(int sceneType) {
         HashMap<String, HashMap<String, String>> styles = new HashMap<>();
         String url = "";
-        if ((sceneType & SceneType.CHAT.getValue()) > 1) {
+        if ((sceneType & SceneType.CHAT.getValue()) > 0) {
             if (isDarkTheme) {
                 url = "Styles/ChatDarkStyle.css";
             } else {
                 url = "Styles/ChatLightStyle.css";
             }
         } 
-        else if ((sceneType & SceneType.LOGIN.getValue()) > 1) {
+        else if ((sceneType & SceneType.LOGIN.getValue()) > 0) {
             if (isDarkTheme) {
                 url = "Styles/LoginDarkStyle.css";
             } else {
                 url = "Styles/LoginLightStyle.css";
             }            
         }
-        else if ((sceneType & SceneType.SETTINGS.getValue()) > 1) {
+        else if ((sceneType & SceneType.SETTINGS.getValue()) > 0) {
             if (isDarkTheme) {
                 url = "Styles/SettingsDarkStyle.css";
             } else {
                 url = "Styles/SettingsLightStyle.css";
             }            
         }
+
         InputStream cssStream = getClass().getResourceAsStream(url);
         byte[] cssBytes = null;
         try {
@@ -227,6 +260,8 @@ public class ThemeManager {
         css = css.replaceAll("/\\*[^*]*\\*+(?:[^/*][^*]*\\*+)*/", ""); // remove comments
         css = css.replaceAll("\\s+", " "); // normalize whitespace
         css = css.trim();
+
+
 
         char[] chars = css.toCharArray();
         int i = 0;

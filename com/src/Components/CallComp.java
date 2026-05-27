@@ -7,6 +7,7 @@ import Network.AudioCall;
 import Network.Call;
 import Network.CallObj;
 import Network.VideoCall;
+import javafx.application.Platform;
 import javafx.geometry.Pos;
 import javafx.scene.control.Button;
 import javafx.scene.control.ComboBox;
@@ -155,11 +156,7 @@ public class CallComp extends StackPane {
     }
 
     public void endCall() {
-        CallObj callObj = AppObserver.getInstance().getCurrentCall();
-        if (callObj != null) {
-            callObj.stop();
-        }
-        System.out.println("Call scheduled for termination.");
+        AppObserver.getInstance().stopCurrentCall();
     }
 
 }

@@ -1,10 +1,10 @@
 package Network;
 
-public class CallObj implements Call {
+public abstract class CallObj implements Call {
 
     
-    public AudioCall audioCall = null;
-    public VideoCall videoCall = null;
+    public volatile AudioCall audioCall = null;
+    public volatile VideoCall videoCall = null;
 
     //Overridden further
     @Override

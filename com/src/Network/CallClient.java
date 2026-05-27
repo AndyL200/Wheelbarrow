@@ -16,6 +16,8 @@ import java.util.List;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.prefs.Preferences;
+import java.util.concurrent.atomic.AtomicReference;
+
 
 import Components.ComponentMacros.DatagramType;
 
@@ -26,7 +28,6 @@ public class CallClient extends CallObj implements AutoCloseable {
     private volatile boolean running = false;
     private static final boolean DEBUG_MODE = Preferences.userRoot().node("wheelbarrow/debug").getBoolean("mode", false);
 
-    int INCLUSIVE_BUFFER_SIZE = Call.GENERIC_BUFFER_SIZE; // Adjust as needed
     private static final int INACTIVITY_TIMEOUT = 2000; // 2 seconds in milliseconds
 
 
@@ -34,7 +35,7 @@ public class CallClient extends CallObj implements AutoCloseable {
     private volatile Thread sendThread;
     private volatile Thread receiveThread;
 
-    BlockingQueue<byte[]> outboundQueue = new LinkedBlockingQueue<>(40);
+    AtomicReference<BlockingQueue<byte[]>> outboundQueue = new AtomicReference<>(new LinkedBlockingQueue<>(100));
 
     public CallClient(String serverHost, int serverPort) {
         try {
@@ -121,7 +122,7 @@ public class CallClient extends CallObj implements AutoCloseable {
     }
 
     private void supplyAudio(byte[] audioData) {
-        outboundQueue.offer(audioData);
+        outboundQueue.get().offer(audioData);
     }
     @Override
     public void openVideoCall() {
@@ -131,16 +132,21 @@ public class CallClient extends CallObj implements AutoCloseable {
     }
 
     private void supplyVideo(byte[] videoData) {
-        outboundQueue.offer(videoData);
+        outboundQueue.get().offer(videoData);
     }
 
     private void handleSend() {
         while (running) {
+            byte[] first;
             try {
-                byte[] first = outboundQueue.take();
-                List<byte[]> batch = new ArrayList<>();
-                batch.add(first);
-                outboundQueue.drainTo(batch);
+                first = outboundQueue.get().take();
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                return;
+            }
+            List<byte[]> batch = new ArrayList<>();
+            batch.add(first);
+            outboundQueue.get().drainTo(batch);
 
             for (byte[] packetData : batch) {
                 int type;
@@ -154,7 +160,7 @@ public class CallClient extends CallObj implements AutoCloseable {
                 }
 
                  if (DEBUG_MODE) {
-                        System.out.println("[CallServer][RECV] Sending packet. len=" + packetData.length + " type =" + typeToLabel(type));
+                        System.out.println("[CallClient][SEND] Sending packet. len=" + packetData.length + " type =" + typeToLabel(type));
                 }
 
                 if (type == DatagramType.AUDIO.getValue()) {
@@ -163,16 +169,12 @@ public class CallClient extends CallObj implements AutoCloseable {
                     sendVideo(packetData);
                 }
             }
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-                break;
-            }
         }
     }
 
     private void handleReceive() {
         while (running) {
-            byte[] networkData = new byte[INCLUSIVE_BUFFER_SIZE];
+            byte[] networkData = new byte[65535]; // Max UDP packet size
             DatagramPacket request = new DatagramPacket(networkData, networkData.length);
             try {
                 docket.receive(request);
@@ -198,7 +200,7 @@ public class CallClient extends CallObj implements AutoCloseable {
             }
 
             if (DEBUG_MODE) {
-                System.out.println("[CallServer][RECV] Receiving packet. len=" + request.getLength() + " type=" + typeToLabel(type));
+                System.out.println("[CallClient][RECV] Receiving packet. len=" + request.getLength() + " type=" + typeToLabel(type));
             }
 
             if (type == DatagramType.AUDIO.getValue()) {
@@ -229,34 +231,27 @@ public class CallClient extends CallObj implements AutoCloseable {
     private void sendAudio(byte[] audioData) {
         try {
             if (DEBUG_MODE) {
-                System.out.println("[CallClient][SEND] type=" + DatagramType.AUDIO.getValue() + " (AUDIO) payload=" + audioData.length);
+                System.out.println("[CallClient][SEND][AUDIO] payload=" + audioData.length);
             }
             DatagramPacket dgPacket = new DatagramPacket(audioData, audioData.length, serverAddress, serverPort);
             docket.send(dgPacket);
-            System.out.println("Sent audio packet to server: " + serverAddress + ":" + serverPort);
+            System.out.println("[CallClient][SEND][AUDIO] Sent packet to server: " + serverAddress + ":" + serverPort);
         } catch (IOException e) {
-            System.out.println("Error sending audio packet: " + e.getMessage());
+            System.out.println("[CallClient][SEND][AUDIO] Error sending packet: " + e.getMessage());
         }
     }
 
     private void sendVideo(byte[] videoData) {
         try {
             if (DEBUG_MODE) {
-                System.out.println("[CallClient][SEND] type=" + DatagramType.VIDEO.getValue() + " (VIDEO) payload=" + videoData.length);
+                System.out.println("[CallClient][SEND][VIDEO] payload=" + videoData.length);
             }
             DatagramPacket dgPacket = new DatagramPacket(videoData, videoData.length, serverAddress, serverPort);
             docket.send(dgPacket);
+            System.out.println("[CallClient][SEND][VIDEO] Sent packet to server: " + serverAddress + ":" + serverPort);
         } catch (IOException e) {
-            System.out.println("Error sending video packet: " + e.getMessage());
+            System.out.println("[CallClient][SEND][VIDEO] Error sending packet: " + e.getMessage());
         }
-    }
-
-    public void queueAudio(byte[] audioData) {
-        outboundQueue.offer(audioData);
-    }
-
-    public void queueVideo(byte[] videoData) {
-        outboundQueue.offer(videoData);
     }
 
     private String typeToLabel(int type) {

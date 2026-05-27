@@ -65,9 +65,6 @@ public class LoginScene extends AppScene {
         this.root.setMaxHeight(Double.MAX_VALUE);
         this.root.setMaxWidth(Double.MAX_VALUE);
         this.setRoot(this.root);
-
-        
-   
     }
 
     private void buildUI() {
