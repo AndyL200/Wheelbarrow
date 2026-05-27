@@ -74,7 +74,7 @@ public class CallServer extends CallObj implements AutoCloseable {
                 return;
             }
         }
-        int minMTU = 65535;
+        int[] minMTU = {65535};
         try {
         NetworkInterface.getNetworkInterfaces().asIterator().forEachRemaining((ni) -> {
             try {
@@ -82,8 +82,8 @@ public class CallServer extends CallObj implements AutoCloseable {
                     return;
                 }
                 int mtu = ni.getMTU();
-                if (mtu < minMTU) {
-                    minMTU = mtu;
+                if (mtu > 0 && mtu < minMTU[0]) {
+                    minMTU[0] = mtu;
                 }
             } catch (SocketException e) {
                 System.out.println("Error checking network interface: " + e.getMessage());
@@ -91,7 +91,7 @@ public class CallServer extends CallObj implements AutoCloseable {
             }
             
         });
-        docket.setSendBufferSize(minMTU);
+        docket.setSendBufferSize(minMTU[0]);
         } catch (SocketException se) {
             System.out.println("Failed to set send buffer size: " + se.getMessage());
         }

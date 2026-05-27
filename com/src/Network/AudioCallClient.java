@@ -7,6 +7,7 @@ import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.concurrent.locks.Condition;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.Consumer;
 import java.util.prefs.Preferences;
@@ -53,6 +54,10 @@ public class AudioCallClient implements AudioCall, AutoCloseable {
     //[LOCK]
     private volatile ReentrantLock micLock = new ReentrantLock();
     private volatile ReentrantLock spkrLock = new ReentrantLock();
+
+    //[WAITING]
+    private volatile Condition micWait = micLock.newCondition();
+    private volatile Condition spkrWait = spkrLock.newCondition();
     
     //[CALLBACK]
     private volatile Consumer<byte[]> onAudioSupply;
@@ -171,6 +176,18 @@ public class AudioCallClient implements AudioCall, AutoCloseable {
                 
                 int MIC_BUFFER_SIZE = AudioCall.NETWORK_BUFFER_SIZE;
                 data = new byte[MIC_BUFFER_SIZE];
+                if (mic == null || !mic.isOpen()) {
+                    System.out.println("[AudioCallClient.supplyAudio] Microphone not ready, skipping audio supply");
+                    try {
+                        micWait.await(); // Wait for mic to be set or timeout after 100ms
+                    } catch (InterruptedException e) {
+                        Thread.currentThread().interrupt();
+                        return;
+                        }
+                }
+                if (DEBUG_MODE) {
+                    System.out.println("[AudioCallClient.supplyAudio] Reading from microphone with buffer size: " + MIC_BUFFER_SIZE);
+                }
                 bytesRead = mic.read(data, 0, MIC_BUFFER_SIZE); //should be the bottleneck
                 if (bytesRead > 0) {
                     networkData = convertMicStream(Arrays.copyOf(data, bytesRead), micFmt);
@@ -212,7 +229,12 @@ public class AudioCallClient implements AudioCall, AutoCloseable {
             try {
                 if (speaker == null || !speaker.isOpen()) {
                     System.out.println("[AudioCallClient.consumeAudio] Speaker not ready, skipping audio consume");
-                    return;
+                    try {
+                        spkrWait.await(); // Wait for speaker to be set or timeout after 100ms
+                    } catch (InterruptedException e) {
+                        Thread.currentThread().interrupt();
+                        return;
+                    }
                 }
                 byte[] speakerData = convertSpkrStream(data, speakerFmt);
                 if (speakerData == null) {
@@ -299,6 +321,7 @@ public class AudioCallClient implements AudioCall, AutoCloseable {
                     System.out.println("[AudioCallClient.setMic] Releasing micLock");
                 }
                 micLock.unlock();
+                micWait.signalAll();
         }
     }
 
@@ -367,6 +390,7 @@ public class AudioCallClient implements AudioCall, AutoCloseable {
         } finally {
                 
                 spkrLock.unlock();
+                spkrWait.signalAll();
         }
     }
 

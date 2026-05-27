@@ -8,6 +8,7 @@ import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.concurrent.locks.Condition;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.Consumer;
 import java.util.prefs.Preferences;
@@ -54,6 +55,10 @@ public class AudioCallServer implements AudioCall, AutoCloseable {
     //[LOCK]
     private volatile ReentrantLock micLock = new ReentrantLock();
     private volatile ReentrantLock spkrLock = new ReentrantLock();
+
+    //[WAITING]
+    private volatile Condition micWait = micLock.newCondition();
+    private volatile Condition spkrWait = spkrLock.newCondition();
     
     //[CALLBACK]
     private volatile Consumer<byte[]> onAudioSupply;
@@ -180,7 +185,12 @@ public class AudioCallServer implements AudioCall, AutoCloseable {
             try {
                 if (speaker == null || !speaker.isOpen()) {
                     System.out.println("[AudioCallServer.consumeAudio] Speaker not ready, skipping audio consume");
-                    return;
+                    try {
+                        spkrWait.await(); // Wait for speaker to be set or timeout after 100ms
+                    } catch (InterruptedException e) {
+                        Thread.currentThread().interrupt();
+                        return;
+                    }
                 }
                 byte[] speakerData = convertSpkrStream(data, speakerFmt);
                 if (speakerData == null) {
@@ -211,7 +221,12 @@ public class AudioCallServer implements AudioCall, AutoCloseable {
                 data = new byte[MIC_BUFFER_SIZE];
                 if (mic == null || !mic.isOpen()) {
                     System.out.println("[AudioCallServer.supplyAudio] Microphone not ready, skipping audio supply");
-                    return;
+                    try {
+                        micWait.await(); // Wait for mic to be set or timeout after 100ms
+                    } catch (InterruptedException e) {
+                        Thread.currentThread().interrupt();
+                        return;
+                    }
                 }
                 if (DEBUG_MODE) {
                     System.out.println("[AudioCallServer.supplyAudio] Reading from microphone with buffer size: " + MIC_BUFFER_SIZE);
@@ -307,6 +322,7 @@ public class AudioCallServer implements AudioCall, AutoCloseable {
                     System.out.println("[AudioCallServer.setMic] Releasing micLock");
                 }
                 micLock.unlock();
+                micWait.signalAll();
         }
     }
     @Override
@@ -389,6 +405,7 @@ public class AudioCallServer implements AudioCall, AutoCloseable {
                     System.out.println("[AudioCallServer.setSpeaker] Releasing spkrLock");
                 }
                 spkrLock.unlock();
+                spkrWait.signalAll();
             }
         }
         
