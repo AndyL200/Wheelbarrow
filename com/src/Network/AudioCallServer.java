@@ -216,7 +216,7 @@ public class AudioCallServer implements AudioCall, AutoCloseable {
                 byte[] networkData = null;
 
                 //System.out.println("2");
-                int MIC_BUFFER_SIZE = AudioCall.NETWORK_BUFFER_SIZE;
+                int MIC_BUFFER_SIZE = AudioCall.getBufferSize(micFmt, 100);
                 //System.out.println("3");
                 data = new byte[MIC_BUFFER_SIZE];
                 if (mic == null || !mic.isOpen()) {
@@ -229,7 +229,7 @@ public class AudioCallServer implements AudioCall, AutoCloseable {
                     }
                 }
                 if (DEBUG_MODE) {
-                    System.out.println("[AudioCallServer.supplyAudio] Reading from microphone with buffer size: " + MIC_BUFFER_SIZE);
+                    //System.out.println("[AudioCallServer.supplyAudio] Reading from microphone with buffer size: " + MIC_BUFFER_SIZE);
                 }
                 bytesRead = mic.read(data, 0, MIC_BUFFER_SIZE); //should be the bottleneck
                 if (bytesRead > 0) {
@@ -430,12 +430,8 @@ public class AudioCallServer implements AudioCall, AutoCloseable {
                 AudioCall.COMMON_NETWORK_FORMAT, rawStream
             );
 
-            int expectedBytes = AudioCall.NETWORK_BUFFER_SIZE;
 
-            byte[] output = new byte[expectedBytes];
-            int read = convertedStream.read(output, 0, expectedBytes);
-
-            return read > 0 ? Arrays.copyOf(output, read) : null;
+            return convertedStream.readAllBytes();
         } catch (IOException e) {
             System.out.println("Mic conversion failed: " + e.getMessage());
             return null;
@@ -459,12 +455,7 @@ public class AudioCallServer implements AudioCall, AutoCloseable {
             AudioInputStream convertedStream = AudioSystem.getAudioInputStream(
                 sFmt, rawStream
             );
-            int expectedBytes = AudioCall.getBufferSize(sFmt, getMillisForSpeakerBuffer());
-
-            byte[] output = new byte[expectedBytes];
-            int read = convertedStream.read(output, 0, expectedBytes);
-
-            return read > 0 ? Arrays.copyOf(output, read) : null;
+           return convertedStream.readAllBytes();
         } catch (IOException e) {
             System.out.println("Speaker conversion failed: " + e.getMessage());
             // Return silence on conversion failure

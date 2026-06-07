@@ -31,6 +31,8 @@ public class ChatComp extends StackPane{
     private ScrollPane scrollChat;
     private VBox core;
     private CallComp callComp;
+    private String rand;
+    private String alias;
 
     public ChatComp() {
         ChatObj chat = AppObserver.getInstance().getCurrentChat();
@@ -62,8 +64,7 @@ public class ChatComp extends StackPane{
         ChatBox chatBox = new ChatBox();
         chatBox.setKeyConsume(this::outtyping);
         chatBox.setOnSend((message) -> {
-            LocalProfile profile = AppObserver.getInstance().getLocalProfile();
-            Message msg = new Message(profile.getUser().getUsername(), message, MessageType.MESSAGE.getValue());
+            Message msg = new Message(alias, message, MessageType.MESSAGE.getValue());
             sendMessage(msg);
         });
 
@@ -83,14 +84,26 @@ public class ChatComp extends StackPane{
         //this.setOnMouseClicked((e) -> this.setStyle("-fx-border-color: #00ff00; -fx-border-width: 3;"));
 
         HBox.setHgrow(this, javafx.scene.layout.Priority.ALWAYS);
+
+        LocalProfile profile = AppObserver.getInstance().getLocalProfile();
+        rand = String.valueOf((long) (Math.random() * Long.MAX_VALUE));
+        alias = profile.getUser().getUsername() + '$' + rand;
     }
     
     public void handleMessage(Message message) {
+            
+            if (message.sender.equals(alias)) {
+                System.out.println("Received message from self, ignoring");
+                return;
+            }
+            if(message.sender.indexOf('$') != -1) {
+                message.sender = message.sender.substring(0, message.sender.indexOf('$'));
+            }
+
             if ((message.type & (MessageType.TYPING.getValue() | MessageType.MESSAGE.getValue())) > 0) {
                 addMessage(message);
                 return;
             }
-            LocalProfile profile = AppObserver.getInstance().getLocalProfile();
 
             if ((message.type & MessageType.AUDIO_HOST.getValue()) > 0) {
                 CallConfig config = CallConfig.fromBytes(message.messageData);
@@ -121,8 +134,7 @@ public class ChatComp extends StackPane{
     private void outtyping(KeyEvent e) {
         if (AppObserver.getInstance().getCurrentChat() == null) return;
         //on outtyping, the chatBox doesn't need to change but a typing signal must still be broadcast to all users
-        LocalProfile profile = AppObserver.getInstance().getLocalProfile();
-        Message msg = new Message(profile.getUser().getUsername(), "", MessageType.TYPING.getValue());
+        Message msg = new Message(alias, "", MessageType.TYPING.getValue());
         sendMessage(msg);
     }
 
@@ -191,7 +203,7 @@ public class ChatComp extends StackPane{
                 }
                 else {
                     //TCP Message to allow UDP communication for the call
-                    sendMessage(new Message(profile.getUser().getUsername(), serverConfig, MessageType.AUDIO_HOST.getValue()));
+                    sendMessage(new Message(alias, serverConfig, MessageType.AUDIO_HOST.getValue()));
                 }
             }
             else {
@@ -305,11 +317,23 @@ class ChatBox extends VBox {
     }
 
     public void addToDisplay(Message message) {
-        if (isTyping) {
+        //[LATER]
+        // if (currentlyTyping.contains(message.sender)) {
+
+        //     if (currentlyTyping.size() == 1) {
+        //         isTyping = false;
+                
+        //         currentlyTyping.clear();
+        //     }
+        //     chatDisplay.getChildren().remove(typingIdx);
+        //     typingString = "";
+        // }
+
+        if(isTyping) {
             isTyping = false;
+            currentlyTyping.clear();
             chatDisplay.getChildren().remove(typingIdx);
             typingString = "";
-            currentlyTyping.clear();
         }
         
         Label label = new Label(message.sender + ": " + new String(message.messageData));
@@ -322,8 +346,17 @@ class ChatBox extends VBox {
         if (currentlyTyping.contains(message.sender)) {
                 return;
         }
+
+        String sender = "";
+        if(message.sender.indexOf('$') == -1) {
+            sender = message.sender;
+        }
+        else {
+            sender = message.sender.substring(0, message.sender.indexOf('$'));
+        }
+
         if (!isTyping) {
-            typingString = message.sender + " is typing...";
+            typingString = sender + " is typing...";
             Label label = new Label(typingString);
             label.getStyleClass().add("message-label");
             chatDisplay.getChildren().add(label);
@@ -342,7 +375,7 @@ class ChatBox extends VBox {
             currentlyTyping.add(message.sender);
         }
         else {
-            typingString = message.sender + " and  " + typingString;
+            typingString = sender + " and  " + typingString;
             chatDisplay.getChildren().remove(typingIdx);
             Label label = new Label(typingString);
             label.getStyleClass().add("message-label");

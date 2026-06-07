@@ -150,7 +150,7 @@ public class ChatScene extends AppScene {
 
     public void openServerOverlay() {
         ServerOverlay overlay = new ServerOverlay();
-        overlay.setOnClose(() -> this.root.getChildren().remove(overlay));
+        overlay.setOnClose(() -> {overlay.setVisible(false); this.root.getChildren().remove(overlay);});
         overlay.setOnServerFound(this::addServerToSidebar);
         overlay.setOnHostServer(this::createChatServer);
         this.root.getChildren().add(overlay);

@@ -26,11 +26,16 @@ public class CallComp extends StackPane {
     private Button muteBtn;
     private Button endCallBtn;
     private Button exitBtn;
+    private Button streamBtn;
     
     //signals
     private Runnable onExit;
     private Runnable onMute;
     private Runnable onEnd;
+
+    //Modes
+    private boolean isAudioActive = false;
+    private boolean isVideoActive = false;
 
     public CallComp() {
         this.getStyleClass().add("audio-call-comp");
@@ -52,14 +57,8 @@ public class CallComp extends StackPane {
         
         // Add placeholder users for demo
         for (int i = 0; i < 4; i++) {
-            StackPane userContainer = new StackPane();
-            userContainer.getStyleClass().add("audio-user-placeholder");
-            userContainer.setMinSize(100, 100);
-            Label userPlaceholder = new Label("User " + (i + 1));
-            userPlaceholder.getStyleClass().add("audio-user-label");
-            userPlaceholder.setAlignment(Pos.CENTER);
-            userContainer.getChildren().add(userPlaceholder);
-            this.callUsers.add(userContainer, i % 2, i / 2);
+            //(TODO) use video components here instead
+            
         }
         
         VBox.setVgrow(this.callUsers, Priority.ALWAYS);
@@ -93,6 +92,13 @@ public class CallComp extends StackPane {
         this.exitBtn.getStyleClass().add("audio-exit-btn");
         this.exitBtn.setOnAction(e -> {
             if (onExit != null) onExit.run();
+        });
+        
+        this.streamBtn = new Button("📹 Stream");
+        this.streamBtn.getStyleClass().add("video-stream-btn");
+        this.streamBtn.setOnAction(e -> {
+            System.out.println("Stream toggled");
+            // For demo, just print. In real app, would toggle video stream.
         });
 
         ComboBox<Mixer.Info> micPicker = new ComboBox<>();

@@ -6,11 +6,17 @@ import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.util.concurrent.Callable;
 import java.util.function.Consumer;
+import java.util.function.Supplier;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+import com.oracle.javafx.scenebuilder.kit.util.eventnames.EventTypeNames;
+
 import Network.ServerCache;
 import Network.ServerInfo;
+import javafx.application.Platform;
+import javafx.event.ActionEvent;
+import javafx.event.EventType;
 import javafx.geometry.Pos;
 import javafx.scene.control.Button;
 import javafx.scene.layout.BorderPane;
@@ -50,14 +56,23 @@ public class ServerOverlay extends StackPane {
         
         StackPane exitButton = new StackPane();
         Circle exitCircle = new Circle(15);
-        exitCircle.getStyleClass().add("add-server-exit-circle");
         Label exitLabel = new Label("X");
+        exitCircle.getStyleClass().add("add-server-exit-circle");
         exitLabel.getStyleClass().add("add-server-exit-label");
         exitButton.getChildren().addAll(exitCircle, exitLabel);
         exitButton.setPrefSize(35, 35);
         exitButton.setStyle("-fx-background-color: transparent; -fx-cursor: hand;");
-        exitCircle.setOnMouseClicked(e -> onClose.run());
+        exitButton.getStyleClass().add("add-server-exit");
+        exitButton.setOnMouseClicked(e -> Platform.runLater(()-> onClose.run()));
         this.exitButton = exitButton;
+        this.exitButton.setOnMouseEntered((Enter) -> {
+            this.exitButton.getStyleClass().add(".add-server-exit-hover");
+            exitCircle.getStyleClass().add("add-server-exit-circle-hover");
+        });
+        this.exitButton.setOnMouseExited((Exit) -> {
+            this.exitButton.getStyleClass().remove(".add-server-exit-hover");
+            exitCircle.getStyleClass().remove("add-server-exit-circle-hover");
+        });
         
         topBar.getChildren().add(exitButton);
         contentPane.setTop(topBar);

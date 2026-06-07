@@ -28,7 +28,7 @@ public class CallClient extends CallObj implements AutoCloseable {
     private volatile boolean running = false;
     private static final boolean DEBUG_MODE = Preferences.userRoot().node("wheelbarrow/debug").getBoolean("mode", false);
 
-    private static final int INACTIVITY_TIMEOUT = 2000; // 2 seconds in milliseconds
+    private static final int INACTIVITY_TIMEOUT = 20000; // 20 seconds in milliseconds
 
 
     // Threads
@@ -42,7 +42,7 @@ public class CallClient extends CallObj implements AutoCloseable {
             this.serverAddress = InetAddress.getByName(serverHost);
             this.serverPort = serverPort;
             this.docket = new DatagramSocket(50000);
-            this.docket.setSoTimeout(INACTIVITY_TIMEOUT); // 2 second timeout for receive
+            this.docket.setSoTimeout(INACTIVITY_TIMEOUT); // 20 second timeout for receive
         } catch (SocketException s1) {
             
             try {
@@ -122,8 +122,21 @@ public class CallClient extends CallObj implements AutoCloseable {
     }
 
     private void supplyAudio(byte[] audioData) {
-        outboundQueue.get().offer(audioData);
+        System.out.println("[CallClient.supplyAudio] audio of size " + audioData.length + " supplied.");
+        //split data into Network buffer sized chunks
+        if(audioData.length > AudioCall.NETWORK_BUFFER_SIZE) {
+            for (int i = 0; i < audioData.length; i += AudioCall.NETWORK_BUFFER_SIZE) {
+                int end = Math.min(audioData.length, i + AudioCall.NETWORK_BUFFER_SIZE);
+                byte[] chunk = Arrays.copyOfRange(audioData, i, end);
+                outboundQueue.get().offer(chunk);
+            }
+        }
+        else {
+            outboundQueue.get().offer(audioData);
+        }
     }
+
+
     @Override
     public void openVideoCall() {
         videoCall = new VideoCallClient();
@@ -132,7 +145,17 @@ public class CallClient extends CallObj implements AutoCloseable {
     }
 
     private void supplyVideo(byte[] videoData) {
-        outboundQueue.get().offer(videoData);
+        System.out.println("[CallClient.supplyVideo] video of size " + videoData.length + " supplied.");
+        if (videoData.length > VideoCall.NETWORK_BUFFER_SIZE) {
+            for(int i = 0; i < videoData.length; i += VideoCall.NETWORK_BUFFER_SIZE) {
+                int end = Math.min(videoData.length, i + VideoCall.NETWORK_BUFFER_SIZE);
+                byte[] chunk = Arrays.copyOfRange(videoData, i, end);
+                outboundQueue.get().offer(chunk);
+            }
+        }
+        else {
+            outboundQueue.get().offer(videoData);
+        }
     }
 
     private void handleSend() {

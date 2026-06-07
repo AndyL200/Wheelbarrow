@@ -1,13 +1,16 @@
 package Network;
 
-import java.net.InetAddress;
+import java.util.List;
 import java.util.function.Consumer;
+import java.util.ArrayList;
+
+import Components.VideoCallComp;
 
 public class VideoCallClient implements VideoCall, AutoCloseable {
-
-    private Consumer<byte[]> onVideoSupply;
+    List<VideoCallComp> videoFeeds;
 
     VideoCallClient() {
+        this.videoFeeds = new ArrayList<>();
     }
 
     @Override
@@ -30,12 +33,17 @@ public class VideoCallClient implements VideoCall, AutoCloseable {
     }
 
     @Override
+    public List<VideoCallComp> getVideoFeeds() {
+        return videoFeeds;
+    }
+
+    @Override
     public void setOnVideoSupply(Consumer<byte[]> onVideoSupply) {
-        this.onVideoSupply = onVideoSupply;
+
     }
 
     @Override
     public void close() {
-
+        stop();
     }
 }

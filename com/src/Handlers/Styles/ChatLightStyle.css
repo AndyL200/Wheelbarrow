@@ -361,23 +361,23 @@
 }
 
 .add-server-exit-circle {
-    -fx-fill: #F5F5F5;
-    -fx-stroke: #E0E0E0;
+    -fx-fill: #383838;
+    -fx-stroke: #4F4F4F;
     -fx-stroke-width: 1;
 }
 
-.add-server-exit-circle:hover {
+.add-server-exit-circle-hover {
     -fx-fill: #E53935;
     -fx-stroke: #C62828;
 }
 
-.add-server-exit-label {
+.add-server-exit {
     -fx-text-fill: #757575;
     -fx-font-size: 16px;
     -fx-font-weight: bold;
 }
 
-.add-server-exit-circle:hover .add-server-exit-label {
+.add-server-exit-hover {
     -fx-text-fill: #FFFFFF;
 }
 

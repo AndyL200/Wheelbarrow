@@ -46,7 +46,6 @@ public class Server extends ChatObj implements AutoCloseable {
 
     private class ClientHandler implements Callable<Void> {
         private Socket client;
-        public int infractions = 0;
         ClientHandler(Socket client) {
             //handle client connection
             this.client = client;
@@ -339,22 +338,25 @@ public class Server extends ChatObj implements AutoCloseable {
         running = false;
         //Do I need to close all clients?
         try {
-                acceptor.join();
-            } catch (InterruptedException i) {
-                acceptor.interrupt();
+            acceptor.join();
+        } catch (InterruptedException i) {
+            acceptor.interrupt();
+        }
+        pool.shutdown();
+        
+        try {
+            socket.close();
+            if (cacheRef != null) {
+                cacheRef.get().accept(info);
             }
-            pool.shutdown();
-            try {
-                socket.close();
-                if (cacheRef != null) {
-                    cacheRef.get().accept(info);
-                }
-                else {
-                    info.dump();
-                }
-            } catch (IOException e) {
-                e.printStackTrace();
+            else {
+                info.dump();
             }
+        } catch (IOException e) {
+            e.printStackTrace();
+        } finally {
+            pool.close();
+        }
     }
     public SoftReference<ServerCache> getServerCacheRef() {
         return this.cacheRef;

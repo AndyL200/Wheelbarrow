@@ -121,7 +121,19 @@ public class CallServer extends CallObj implements AutoCloseable {
     }
 
     private void supplyAudio(byte[] audioData) {
-        outboundQueue.get().offer(audioData);
+        System.out.println("[CallClient.supplyAudio] audio of size " + audioData.length + " supplied.");
+        //split data into Network buffer sized chunks
+        if(audioData.length > AudioCall.NETWORK_BUFFER_SIZE) {
+            for (int i = 0; i < audioData.length; i += AudioCall.NETWORK_BUFFER_SIZE) {
+                int end = Math.min(audioData.length, i + AudioCall.NETWORK_BUFFER_SIZE);
+                byte[] chunk = Arrays.copyOfRange(audioData, i, end);
+                System.out.println("[CallClient.supplyAudio] offering chunk of size " + chunk.length);
+                outboundQueue.get().offer(chunk);
+            }
+        }
+        else {
+            outboundQueue.get().offer(audioData);
+        }
     }
 
     @Override
@@ -145,7 +157,17 @@ public class CallServer extends CallObj implements AutoCloseable {
     }
 
     private void supplyVideo(byte[] videoData) {
-        outboundQueue.get().offer(videoData);
+        System.out.println("[CallClient.supplyVideo] video of size " + videoData.length + " supplied.");
+        if (videoData.length > VideoCall.NETWORK_BUFFER_SIZE) {
+            for(int i = 0; i < videoData.length; i += VideoCall.NETWORK_BUFFER_SIZE) {
+                int end = Math.min(videoData.length, i + VideoCall.NETWORK_BUFFER_SIZE);
+                byte[] chunk = Arrays.copyOfRange(videoData, i, end);
+                outboundQueue.get().offer(chunk);
+            }
+        }
+        else {
+            outboundQueue.get().offer(videoData);
+        }
     }
 
     @Override
@@ -229,45 +251,40 @@ public class CallServer extends CallObj implements AutoCloseable {
 
             synchronized (clients) {
                 long startTime = System.currentTimeMillis();
-                List<Map.Entry<SocketAddress, Long>> toRemove = new ArrayList<>();
-                clients.forEach((k, v) -> {
-                        toRemove.add(Map.entry(k, v));
-                });
                 for (byte[] packetData : batch) {
                     if (packetData == null) {
                         continue;
                     }
-                int iterator = 0;
-                while (toRemove.size() > 0) {
-                    Map.Entry<SocketAddress, Long> entry = toRemove.get(iterator);
-                    long lastActivityTime = entry.getValue();
-                    long currentTime = System.currentTimeMillis();
+                    Iterator<SocketAddress> iterator = clients.keySet().iterator();
+                    while (iterator.hasNext()) {
+                        SocketAddress client = iterator.next();
+                        Long lastActivityTime = clients.get(client);
+                        long currentTime = System.currentTimeMillis();
 
-                    if (currentTime - (currentTime - startTime) - lastActivityTime > INACTIVITY_TIMEOUT) {
-                        SocketAddress inactiveClient = entry.getKey();
-                        clients.remove(entry.getKey());
-                        System.out.println("Removed inactive client: " + inactiveClient);
-                    } else {
-                        // Determine packet type
-                        int type;
-                        if (packetData.length <= AudioCall.NETWORK_BUFFER_SIZE) {
-                            type = DatagramType.AUDIO.getValue();
-                        } else if (packetData.length <= VideoCall.NETWORK_BUFFER_SIZE) {
-                            type = DatagramType.VIDEO.getValue();
+                        if (currentTime - (currentTime - startTime) - lastActivityTime > INACTIVITY_TIMEOUT) {
+                            clients.remove(client);
+                            System.out.println("Removed inactive client: " + client);
                         } else {
-                            type = DatagramType.UNKNOWN.getValue();
-                        }
-                        
-                        try {
-                            if (DEBUG_PACKET_TYPE) {
-                                System.out.println("[CallServer][SEND] to=" + entry.getKey() + " type=" + type + " (" + typeToLabel(type) + ") payload=" + packetData.length);
+                            // Determine packet type
+                            int type;
+                            if (packetData.length <= AudioCall.NETWORK_BUFFER_SIZE) {
+                                type = DatagramType.AUDIO.getValue();
+                            } else if (packetData.length <= VideoCall.NETWORK_BUFFER_SIZE) {
+                                type = DatagramType.VIDEO.getValue();
+                            } else {
+                                type = DatagramType.UNKNOWN.getValue();
                             }
-                            docket.send(new DatagramPacket(packetData, packetData.length, entry.getKey()));
-                        } catch (IOException e) {
-                            System.out.println("Error sending packet to " + entry.getKey() + ": " + e.getMessage());
+                            
+                            try {
+                                if (DEBUG_PACKET_TYPE) {
+                                    System.out.println("[CallServer][SEND] to=" + client + " type=" + type + " (" + typeToLabel(type) + ") payload=" + packetData.length);
+                                }
+                                docket.send(new DatagramPacket(packetData, packetData.length, client));
+                            } catch (IOException e) {
+                                System.out.println("Error sending packet to " + client + ": " + e.getMessage());
+                            }
                         }
                     }
-                }
                 }
             }
         }
