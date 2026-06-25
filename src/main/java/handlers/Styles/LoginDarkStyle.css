@@ -1,0 +1,171 @@
+/* ─────────────────────────────────────────────────────────────────────────── */
+/* LOGIN SCENE - DARK THEME */
+/* ─────────────────────────────────────────────────────────────────────────── */
+
+.root {
+    -fx-background-color: #1E1E1E;
+    -fx-text-fill: #E0E0E0;
+}
+
+.login-root {
+    -fx-alignment: center;
+    -fx-background-color: #1E1E1E;
+}
+
+.login-app-title {
+    -fx-font-size: 32px;
+    -fx-font-weight: bold;
+    -fx-text-fill: #E0E0E0;
+    -fx-padding: 0 0 20 0;
+}
+
+.login-app-title:hover {
+    -fx-opacity: 0.8;
+}
+
+.login-user-list {
+    -fx-hbar-policy: as_needed;
+    -fx-vbar-policy: never;
+}
+
+.user-portrait-card {
+    -fx-border-color: #424242;
+    -fx-border-radius: 10;
+    -fx-border-width: 2;
+    -fx-background-color: #2D2D2D;
+    -fx-padding: 12;
+    -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.4), 4, 0, 0, 2);
+}
+
+.user-portrait-card:hover {
+    -fx-border-color: #64B5F6;
+    -fx-effect: dropshadow(gaussian, rgba(100,181,246,0.3), 8, 0, 0, 4);
+}
+
+.user-portrait-card:pressed {
+    -fx-background-color: #3a3a3a;
+    -fx-border-color: #42A5F5;
+}
+
+.user-image-circular {
+    -fx-smooth: true;
+}
+
+.user-name-label {
+    -fx-font-size: 13px;
+    -fx-font-weight: bold;
+    -fx-text-fill: #E0E0E0;
+    -fx-wrap-text: true;
+    -fx-text-alignment: center;
+}
+
+.create-account-btn {
+    -fx-pref-width: 80;
+    -fx-pref-height: 80;
+    -fx-padding: 0;
+    -fx-background-color: #2D2D2D;
+    -fx-text-fill: #64B5F6;
+    -fx-font-size: 48px;
+    -fx-border-color: #424242;
+    -fx-border-radius: 10;
+    -fx-background-radius: 10;
+    -fx-border-width: 2;
+    -fx-border-style: dashed;
+    -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.4), 4, 0, 0, 2);
+}
+
+.create-account-btn:hover {
+    -fx-border-color: #64B5F6;
+    -fx-background-color: #373737;
+    -fx-effect: dropshadow(gaussian, rgba(100,181,246,0.3), 8, 0, 0, 4);
+}
+
+.create-account-btn:pressed {
+    -fx-background-color: #2D2D2D;
+    -fx-border-color: #42A5F5;
+}
+
+.login-welcome {
+    -fx-font-size: 18px;
+    -fx-font-weight: bold;
+    -fx-text-fill: #E0E0E0;
+    -fx-wrap-text: true;
+}
+
+.login-hint {
+    -fx-font-size: 12px;
+    -fx-text-fill: #B0B0B0;
+}
+
+.login-field {
+    -fx-pref-width: 100%;
+    -fx-padding: 10px;
+    -fx-background-color: #2D2D2D;
+    -fx-text-fill: #E0E0E0;
+    -fx-prompt-text-fill: #757575;
+    -fx-border-color: #424242;
+    -fx-border-radius: 6;
+    -fx-background-radius: 6;
+    -fx-border-width: 1;
+    -fx-font-size: 13px;
+}
+
+.login-field:focused {
+    -fx-border-color: #64B5F6;
+    -fx-border-width: 2;
+    -fx-effect: dropshadow(gaussian, rgba(100,181,246,0.2), 4, 0, 0, 2);
+}
+
+.login-title {
+    -fx-font-size: 16px;
+    -fx-font-weight: bold;
+    -fx-text-fill: #E0E0E0;
+    -fx-padding: 10 0 10 0;
+}
+
+.login-btn {
+    -fx-padding: 10px;
+    -fx-background-color: #64B5F6;
+    -fx-text-fill: #1E1E1E;
+    -fx-font-size: 14px;
+    -fx-font-weight: bold;
+    -fx-background-radius: 6;
+    -fx-border-radius: 6;
+    -fx-cursor: hand;
+    -fx-effect: dropshadow(gaussian, rgba(100,181,246,0.3), 4, 0, 0, 2);
+}
+
+.login-btn:hover {
+    -fx-background-color: #81D4FA;
+    -fx-effect: dropshadow(gaussian, rgba(129,212,250,0.4), 6, 0, 0, 3);
+}
+
+.login-btn:pressed {
+    -fx-background-color: #42A5F5;
+}
+
+.login-link {
+    -fx-text-fill: #64B5F6;
+    -fx-underline: false;
+    -fx-font-size: 12px;
+    -fx-cursor: hand;
+}
+
+.login-link:visited {
+    -fx-text-fill: #42A5F5;
+}
+
+.login-link:hover {
+    -fx-underline: true;
+    -fx-text-fill: #81D4FA;
+}
+
+.login-error {
+    -fx-text-fill: #FF6B6B;
+    -fx-font-size: 12px;
+    -fx-font-weight: bold;
+    -fx-padding: 8px;
+    -fx-background-color: rgba(255,107,107,0.15);
+    -fx-background-radius: 4;
+    -fx-border-radius: 4;
+}

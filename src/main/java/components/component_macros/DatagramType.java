@@ -1,0 +1,19 @@
+package components.component_macros;
+
+public enum DatagramType {
+    AUDIO(1),
+    VIDEO(2),
+    UNKNOWN(99);
+
+    private final int value;
+
+    DatagramType(int value) {
+        this.value = value;
+    }
+
+    public int getValue() {
+        return value;
+    }
+}
+
+

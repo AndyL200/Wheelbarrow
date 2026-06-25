@@ -1,0 +1,185 @@
+/* ============================================================
+ * baseStyles.css — structural/layout styles only
+ * Colors live in darkTheme.css / lightTheme.css
+ * These rules are loaded for every theme.
+ * ============================================================ */
+
+/* === SCROLL-PANE RESET === */
+.scroll-pane {
+    -fx-background-color: transparent;
+    -fx-background-insets: 0;
+    -fx-padding: 0;
+}
+.scroll-pane > .viewport {
+    -fx-background-color: transparent;
+}
+.scroll-pane > .corner {
+    -fx-background-color: transparent;
+}
+
+/* === SIDEBAR === */
+.sidebar-style {
+    -fx-padding: 8px 4px;
+}
+.sidebar-core {
+    -fx-padding: 8px 4px;
+}
+.sidebar-add-btn-label {
+    -fx-font-size: 26px;
+    -fx-font-weight: bold;
+}
+.server-entry-selected {
+    -fx-border-width: 2;
+    -fx-border-radius: 8;
+    -fx-background-radius: 8;
+}
+
+/* === NAVBAR === */
+.navbar {
+    -fx-padding: 8px 16px;
+    -fx-alignment: center-left;
+    -fx-min-height: 44px;
+    -fx-max-height: 52px;
+    -fx-border-width: 0 0 1 0;
+}
+.server-title-label {
+    -fx-font-size: 15px;
+    -fx-font-weight: bold;
+}
+.audio-call-btn,
+.video-call-btn,
+.disconnect-btn {
+    -fx-border-color: transparent;
+    -fx-padding: 0;
+    -fx-background-radius: 6;
+    -fx-border-radius: 6;
+    -fx-cursor: hand;
+}
+.audio-call-btn-hover,
+.video-call-btn-hover,
+.disconnect-btn-hover {
+    -fx-background-radius: 6;
+    -fx-border-radius: 6;
+}
+.audio-call-btn-active,
+.video-call-btn-active {
+    -fx-border-width: 2;
+    -fx-background-radius: 6;
+    -fx-border-radius: 6;
+}
+
+/* === CHAT === */
+.send-box {
+    -fx-padding: 10px;
+    -fx-spacing: 8px;
+    -fx-min-height: 52px;
+    -fx-max-height: 62px;
+    -fx-alignment: center;
+    -fx-border-width: 1 0 0 0;
+}
+.msg-input {
+    -fx-font-size: 13px;
+    -fx-padding: 8px 12px;
+    -fx-background-radius: 6;
+    -fx-border-radius: 6;
+    -fx-border-width: 1;
+}
+.send-btn {
+    -fx-padding: 8px 18px;
+    -fx-font-size: 13px;
+    -fx-cursor: hand;
+    -fx-background-radius: 6;
+    -fx-border-radius: 6;
+    -fx-font-weight: bold;
+    -fx-border-color: transparent;
+}
+.message-label {
+    -fx-padding: 6px 12px;
+    -fx-background-radius: 8;
+    -fx-border-radius: 8;
+    -fx-font-size: 13px;
+    -fx-wrap-text: true;
+    -fx-max-width: infinity;
+}
+
+/* === CALL COMPONENTS === */
+.audio-call-container,
+.video-call-container {
+    -fx-border-width: 2;
+    -fx-border-radius: 12;
+    -fx-background-radius: 12;
+}
+.audio-user-placeholder,
+.video-user-placeholder {
+    -fx-border-width: 1;
+    -fx-border-radius: 8;
+    -fx-background-radius: 8;
+    -fx-alignment: center;
+}
+.audio-user-label,
+.video-user-label {
+    -fx-font-size: 12px;
+}
+.audio-call-controls,
+.video-call-controls {
+    -fx-padding: 15px;
+    -fx-border-radius: 8;
+    -fx-background-radius: 8;
+    -fx-spacing: 12px;
+}
+.audio-control-btn,
+.video-control-btn {
+    -fx-padding: 8px 16px;
+    -fx-font-size: 13px;
+    -fx-background-radius: 6;
+    -fx-border-radius: 6;
+    -fx-cursor: hand;
+    -fx-border-color: transparent;
+}
+.audio-end-call-btn,
+.video-end-call-btn {
+    -fx-padding: 8px 16px;
+    -fx-font-size: 13px;
+    -fx-background-radius: 6;
+    -fx-border-radius: 6;
+    -fx-cursor: hand;
+    -fx-border-color: transparent;
+}
+.audio-exit-btn,
+.video-exit-btn {
+    -fx-padding: 8px 16px;
+    -fx-font-size: 13px;
+    -fx-background-radius: 6;
+    -fx-border-radius: 6;
+    -fx-cursor: hand;
+    -fx-border-color: transparent;
+}
+
+/* === SERVER OVERLAY === */
+.add-server-content {
+    -fx-border-radius: 12;
+    -fx-background-radius: 12;
+    -fx-effect: dropshadow(three-pass-box, rgba(0,0,0,0.4), 20, 0, 0, 6);
+}
+.add-server-exit-label {
+    -fx-font-size: 13px;
+    -fx-font-weight: bold;
+}
+.add-server-title {
+    -fx-font-size: 20px;
+    -fx-font-weight: bold;
+    -fx-padding: 5px 0 12px 0;
+}
+.add-server-label {
+    -fx-font-size: 13px;
+}
+.add-server-submit-btn,
+.add-server-create-btn {
+    -fx-padding: 10px 0;
+    -fx-font-size: 13px;
+    -fx-cursor: hand;
+    -fx-background-radius: 6;
+    -fx-border-radius: 6;
+    -fx-pref-width: 220px;
+    -fx-border-color: transparent;
+}
