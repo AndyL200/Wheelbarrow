@@ -1,0 +1,235 @@
+package network;
+import java.io.ByteArrayOutputStream;
+import java.io.DataInputStream;
+import java.io.DataOutputStream;
+import java.io.IOException;
+import java.net.InetAddress;
+import java.net.NetworkInterface;
+import java.net.Socket;
+import java.net.SocketException;
+import java.util.Enumeration;
+import java.util.function.Consumer;
+import components.component_macros.MessageType;
+
+import components.Message;
+
+public class Client extends ChatObj implements AutoCloseable {
+    private volatile boolean running = true;
+    private Socket SERVER;
+    private ServerInfo info;
+    private String HOSTNAME;
+    private InetAddress ADDRESS;
+    private int PORT = 50000;
+    private DataInputStream reader;
+    private DataOutputStream writer;
+    private Consumer<Message> onMessageReceived;
+    
+
+
+    public Client(InetAddress address, int port) {
+        getClientAddress();
+        HOSTNAME = ADDRESS != null ? ADDRESS.getHostName() : "Unknown Client";
+        this.onMessageReceived = msg -> {System.out.println("[Client.onMessageReceived] " + new String(msg.messageData));};
+        info = new ServerInfo("loading...", address, port, null);
+    }
+
+    public Client(InetAddress address, int port, Consumer<Message> listener) {
+        getClientAddress();
+        HOSTNAME = ADDRESS != null ? ADDRESS.getHostName() : "Unknown Client";
+        this.onMessageReceived = listener;
+        info = new ServerInfo("loading...", address, port, null);
+    }
+
+    public void start() {
+        if (info == null) {
+            System.out.println("Client info not initialized, cannot start");
+            return;
+        }
+        InetAddress SERVER_ADDRESS = info.SERVER_ADDRESS;
+        int SERVER_PORT = info.SERVER_PORT;
+        if (SERVER_ADDRESS.getHostName().equals(HOSTNAME)) {
+            HOSTNAME += "_1"; //simple way to avoid hostname conflicts, could be improved by checking existing hostnames in the server
+        }
+        try {
+            SERVER = new Socket(SERVER_ADDRESS, SERVER_PORT);
+            reader = new DataInputStream(SERVER.getInputStream());
+            writer = new DataOutputStream(SERVER.getOutputStream());
+            Thread receiveThread = new Thread(this::receiveLoop);
+            receiveThread.setDaemon(true);  // Exit with app
+            receiveThread.start();
+        } catch (IOException e) {
+            System.out.println("Error connecting to server: " + e.getMessage());
+        }
+    }
+
+    private void receiveLoop() {
+        while(running) {
+            byte[] data = receive();
+            if (data.length > 0) {
+                Message msg = Message.fromBytes(data);
+                if (msg == null) {
+                    System.out.println("Received invalid message");
+                    continue;
+                }
+                if (msg.sender.equals(HOSTNAME)) {
+                    System.out.println("Received message from self, ignoring");
+                    continue;
+                }
+                if ((msg.type & MessageType.MESSAGE.getValue()) > 0) {
+                    //could be an image here
+                    System.out.println("Received message: " + new String(msg.messageData));
+                    onMessageReceived.accept(msg);
+                }
+                else if ((msg.type & MessageType.TYPING.getValue()) > 0) {
+                    System.out.println("Received typing message: " + new String(msg.messageData));
+                    onMessageReceived.accept(msg);
+                }
+                else if ((msg.type & MessageType.WELCOME.getValue()) > 0) {
+                    System.out.println("Received welcome message: " + new String(msg.messageData));
+                    String SERVER_HOSTNAME = msg.sender;
+                    info.SERVER_NAME.set(SERVER_HOSTNAME);
+                    //send a request for server info
+                    send(new Message(HOSTNAME, "Request", MessageType.SERVER_INFO.getValue()));
+                    requestInfo();
+                }
+                else if ((msg.type & MessageType.SERVER_INFO.getValue()) > 0) {
+                    // Probably an area where something specific happens because the message is directed towards this client
+                    System.out.println("Received server info: " + new String(msg.messageData));
+                    info = ServerInfo.parseMessage(msg);
+                }
+                else if ((msg.type & MessageType.BROADCAST.getValue()) > 0) {
+                    //handle broadcast message, this is a message that should be sent to all users but not necessarily displayed in the chat
+                    System.out.println("Received broadcast message: " + new String(msg.messageData));
+                    onMessageReceived.accept(msg);
+                }
+            }
+        }
+    }
+
+    @Override
+    //User Interface contracts
+    public void send(byte[] data) {
+        send(Message.fromBytes(data));
+    }
+    @Override
+    public void send(Message message) {
+        if (writer == null || SERVER == null || SERVER.isClosed()) {
+            System.out.println("Cannot send message: Socket not connected");
+            return;
+        }
+
+        byte[] data = message.messageData;
+        try {
+            writer.writeInt(message.type); //type of message
+            writer.writeInt(message.sender.getBytes().length); //sender length
+            writer.writeInt(data.length);
+            writer.write(message.sender.getBytes(), 0, message.sender.getBytes().length);
+            writer.write(data, 0, data.length);
+            writer.flush();
+        } catch (IOException e) {
+            System.out.println("Error sending message: " + e.getMessage());
+
+        }
+    }
+    @Override
+    public byte[] receive() {
+        try {
+            return receiveClient().toByteArray();
+        } catch (IOException e) {
+            //System.out.println("Error receiving message: " + e.getMessage());
+            return new byte[0];
+        }
+    }
+
+    //expecting to "joker" the stream
+    public ByteArrayOutputStream receiveClient() throws IOException {
+        if (SERVER == null || SERVER.isClosed()) {
+            System.out.println("Socket is not connected.");
+            return new ByteArrayOutputStream();
+        }
+        ByteArrayOutputStream buffer = new ByteArrayOutputStream();
+        DataOutputStream dos = new DataOutputStream(buffer);
+        int type = reader.readInt();
+        int slength = reader.readInt();
+        int length = reader.readInt();
+        System.out.println("Message Received - Type: " + type + ", Sender Length: " + slength + ", Message Length: " + length);
+        byte[] senderData = new byte[slength];
+        reader.read(senderData, 0, slength);
+        byte[] data = new byte[length];
+        reader.read(data, 0, length);
+        dos.writeInt(type); //messageType
+        dos.writeInt(slength); //sender length
+        dos.writeInt(length); //message length
+        dos.write(senderData, 0, slength); //sender
+        dos.write(data, 0, data.length); //msg data
+        return buffer;
+    }
+    public void setOnMessageReceived(Consumer<Message> listener) {
+        this.onMessageReceived = listener;
+    }
+
+    public String getName() {
+        return HOSTNAME;
+    }
+
+    
+    public InetAddress getClientAddress() {
+        if (ADDRESS != null) {
+            return ADDRESS;
+        }
+        try {
+        Enumeration<NetworkInterface> interfaces = NetworkInterface.getNetworkInterfaces();
+
+            while (interfaces.hasMoreElements()) {
+                NetworkInterface iface = interfaces.nextElement();
+                if (iface.isLoopback() || iface.isUp() == false || iface.isVirtual()) {
+                    continue;
+                }
+                Enumeration<InetAddress> addresses = iface.getInetAddresses();
+                while (addresses.hasMoreElements()) {
+                    InetAddress addr = addresses.nextElement();
+                    if (!addr.isLoopbackAddress()) {
+                        ADDRESS = addr;
+                        return addr;
+                    }
+                }
+            }
+        }
+        catch (SocketException s) {
+            System.out.println("Failed to get network interfaces");
+        }
+        return null;
+    }
+
+    @Override
+    public InetAddress getAddress() {
+        if (SERVER != null && SERVER.isConnected()) {
+            return SERVER.getInetAddress();
+        }
+        return null;
+    }
+    private void requestInfo() {
+        send(new Message(HOSTNAME, "Request", MessageType.SERVER_INFO.getValue()));
+    }
+    @Override
+    public ServerInfo getInfo() {
+        return info;
+    }
+    @Override
+    public void stop() {
+        running = false;
+        try {
+            if (SERVER != null && !SERVER.isClosed()) {
+                SERVER.close();
+            }
+        } catch (IOException e) {
+            System.out.println("Error closing client socket: " + e.getMessage());
+        }
+    }
+    @Override
+    public void close() {
+       stop();
+    }
+
+}
+
