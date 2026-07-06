@@ -258,7 +258,8 @@ public class AudioCall implements AutoCloseable{
         }
     }
     
-    public void offer(byte[] data) {
+    //Want the client id here so we can mute specific users if needed
+    public void offer(int client_id, byte[] data) {
         if (data != null) {
             jitterQueue.get().offer(data); // drops if full — intentional
         }

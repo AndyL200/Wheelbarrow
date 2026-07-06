@@ -34,10 +34,10 @@ public class VideoCallComp extends BorderPane {
     PipedOutputStream out; 
     EmbeddedMediaPlayer mediaPlayer;
     ImageView imageView;
-    User user;
+    int idx;
     
-    public VideoCallComp(User user) {
-        this.user = user;
+    public VideoCallComp(int idx) {
+        this.idx = idx;
         this.getStyleClass().add("video-call-comp");
         this.setMaxHeight(Double.MAX_VALUE);
         this.setMaxWidth(Double.MAX_VALUE);
@@ -98,8 +98,8 @@ public class VideoCallComp extends BorderPane {
         return out;
     }
 
-    public User getUser() {
-        return user;
+    public int getClientId() {
+        return idx;
     }
 
     private void buildOverlay() {

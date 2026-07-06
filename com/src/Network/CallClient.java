@@ -29,6 +29,7 @@ public class CallClient extends CallObj implements AutoCloseable {
     private static final boolean DEBUG_MODE = Preferences.userRoot().node("wheelbarrow/debug").getBoolean("mode", false);
 
     private static final int INACTIVITY_TIMEOUT = 20000; // 20 seconds in milliseconds
+    private int NETWORK_BUFFER_SIZE = 2048; // TODO(This will changed based on the MTU)
 
 
     // Threads
@@ -116,7 +117,7 @@ public class CallClient extends CallObj implements AutoCloseable {
     }
     @Override
     public void openAudioCall() {
-        audioCall = new AudioCallClient();
+        audioCall = new AudioCall();
         audioCall.start();
         audioCall.setOnAudioSupply(this::supplyAudio);
     }
@@ -124,10 +125,13 @@ public class CallClient extends CallObj implements AutoCloseable {
     private void supplyAudio(byte[] audioData) {
         System.out.println("[CallClient.supplyAudio] audio of size " + audioData.length + " supplied.");
         //split data into Network buffer sized chunks
-        if(audioData.length > AudioCall.NETWORK_BUFFER_SIZE) {
-            for (int i = 0; i < audioData.length; i += AudioCall.NETWORK_BUFFER_SIZE) {
-                int end = Math.min(audioData.length, i + AudioCall.NETWORK_BUFFER_SIZE);
-                byte[] chunk = Arrays.copyOfRange(audioData, i, end);
+        if(audioData.length > NETWORK_BUFFER_SIZE) {
+            for (int i = 0; i < audioData.length; i += NETWORK_BUFFER_SIZE) {
+                int end = Math.min(audioData.length, i + NETWORK_BUFFER_SIZE);
+                byte[] identifiers = {(byte, (byte) DatagramType.AUDIO.getValue()}; // TODO(PAD FIRST TWO BYTES PREEMPTIVELY)
+                byte[] chunk = new byte[end - i + identifiers.length];
+                System.arraycopy(identifiers, 0, chunk, 0, identifiers.length);
+                System.arraycopy(audioData, i, chunk, identifiers.length, end - i);
                 outboundQueue.get().offer(chunk);
             }
         }
@@ -139,16 +143,17 @@ public class CallClient extends CallObj implements AutoCloseable {
 
     @Override
     public void openVideoCall() {
-        videoCall = new VideoCallClient();
+        videoCall = new VideoCall();
         videoCall.start();
         videoCall.setOnVideoSupply(this::supplyVideo);
     }
 
     private void supplyVideo(byte[] videoData) {
         System.out.println("[CallClient.supplyVideo] video of size " + videoData.length + " supplied.");
-        if (videoData.length > VideoCall.NETWORK_BUFFER_SIZE) {
-            for(int i = 0; i < videoData.length; i += VideoCall.NETWORK_BUFFER_SIZE) {
-                int end = Math.min(videoData.length, i + VideoCall.NETWORK_BUFFER_SIZE);
+        if (videoData.length > NETWORK_BUFFER_SIZE) {
+            for(int i = 0; i < videoData.length; i += NETWORK_BUFFER_SIZE) {
+                int end = Math.min(videoData.length, i + NETWORK_BUFFER_SIZE);
+                byte[] identifiers = {(byte) 0, (byte) DatagramType.VIDEO.getValue()}; // TODO(PAD FIRST TWO BYTES PREEMPTIVELY)
                 byte[] chunk = Arrays.copyOfRange(videoData, i, end);
                 outboundQueue.get().offer(chunk);
             }
@@ -172,24 +177,24 @@ public class CallClient extends CallObj implements AutoCloseable {
             outboundQueue.get().drainTo(batch);
 
             for (byte[] packetData : batch) {
-                int type;
-                if (packetData.length <= AudioCall.NETWORK_BUFFER_SIZE) {
-                    type = DatagramType.AUDIO.getValue();
-                } else if (packetData.length <= VideoCall.NETWORK_BUFFER_SIZE) {
-                    type = DatagramType.VIDEO.getValue();
+                DatagramType type;
+                if (packetData[1] == DatagramType.AUDIO.getValue()) {
+                    type = DatagramType.AUDIO;
+                } else if (packetData[1] == DatagramType.VIDEO.getValue()) {
+                    type = DatagramType.VIDEO;
                 } else {
-                    //Really we would want a format test here if the sizes fail
-                    type = DatagramType.UNKNOWN.getValue(); // Treat as debug or unknown type
+                    //Cannot be routed, do nothing
+                    type = DatagramType.UNKNOWN;
                 }
 
                  if (DEBUG_MODE) {
-                        System.out.println("[CallClient][SEND] Sending packet. len=" + packetData.length + " type =" + typeToLabel(type));
+                        System.out.println("[CallClient][SEND] Sending packet. len=" + packetData.length + " type =" + type.toString());
                 }
 
-                if (type == DatagramType.AUDIO.getValue()) {
-                    sendAudio(packetData);
-                } else if (type == DatagramType.VIDEO.getValue()) {
-                    sendVideo(packetData);
+                if (type == DatagramType.AUDIO) {
+                    sendAudio(type, packetData);
+                } else if (type == DatagramType.VIDEO) {
+                    sendVideo(type, packetData);
                 }
             }
         }
@@ -211,51 +216,53 @@ public class CallClient extends CallObj implements AutoCloseable {
 
             byte[] packetData = request.getData();
 
-            int type;
-            if (request.getLength() <= AudioCall.NETWORK_BUFFER_SIZE) {
-                type = DatagramType.AUDIO.getValue();
-                //Video Call packets will be larger than audio
-            } else if (request.getLength() <= VideoCall.NETWORK_BUFFER_SIZE) {
-                type = DatagramType.VIDEO.getValue();
+            DatagramType type;
+            if (packetData[1] == DatagramType.AUDIO.getValue()) {
+                type = DatagramType.AUDIO;
+            } else if (packetData[1] == DatagramType.VIDEO.getValue()) {
+                type = DatagramType.VIDEO;
             } else {
                 //Really we would want a format test here if the sizes fail
-                type = DatagramType.UNKNOWN.getValue(); // Treat as debug or unknown type
+                type = DatagramType.UNKNOWN; // Treat as debug or unknown type
             }
+            int client_id = packetData[0]; 
 
             if (DEBUG_MODE) {
-                System.out.println("[CallClient][RECV] Receiving packet. len=" + request.getLength() + " type=" + typeToLabel(type));
+                System.out.println("[CallClient][RECV] Receiving packet. len=" + request.getLength() + " type=" + type.toString());
             }
 
-            if (type == DatagramType.AUDIO.getValue()) {
+            if (type == DatagramType.AUDIO) {
                 byte[] audioData = Arrays.copyOf(packetData, request.getLength());
-                receiveAudio(audioData);
+                receiveAudio(type, audioData, client_id);
             }
-            else if (type == DatagramType.VIDEO.getValue()) {
+            else if (type == DatagramType.VIDEO) {
                 byte[] videoData = Arrays.copyOf(packetData, request.getLength());
-                receiveVideo(videoData);
-            } else if (type == DatagramType.UNKNOWN.getValue()) {
+                receiveVideo(type, videoData, client_id);
+            } else if (type == DatagramType.UNKNOWN) {
                 System.out.println("[CallClient][RECV] Unknown datagram type=" + type);
             }
         }
     }
 
-    private void receiveAudio(byte[] data) {
-        if (audioCall != null) {
-            audioCall.offer(data);
+    private void receiveAudio(DatagramType type, byte[] data, int client_id) {
+        if (audioCall != null && type == DatagramType.AUDIO) {
+            audioCall.offer(client_id, data);
         }
     }
 
-    private void receiveVideo(byte[] data) {
-        if (videoCall != null) {
-            videoCall.offer(data);
+    private void receiveVideo(DatagramType type, byte[] data, int client_id) {
+        if (videoCall != null && type == DatagramType.VIDEO) {
+            videoCall.offer(client_id, data);
         }
     }
 
-    private void sendAudio(byte[] audioData) {
+    private void sendAudio(DatagramType type, byte[] audioData) {
         try {
             if (DEBUG_MODE) {
                 System.out.println("[CallClient][SEND][AUDIO] payload=" + audioData.length);
             }
+            byte typeByte = (byte) type.getValue();
+            audioData[1] = typeByte; // Prepend type byte to the audio data TODO(ALWAYS PAD FIRST TWO BYTES PREEMPTIVELY)
             DatagramPacket dgPacket = new DatagramPacket(audioData, audioData.length, serverAddress, serverPort);
             docket.send(dgPacket);
             System.out.println("[CallClient][SEND][AUDIO] Sent packet to server: " + serverAddress + ":" + serverPort);
@@ -264,27 +271,19 @@ public class CallClient extends CallObj implements AutoCloseable {
         }
     }
 
-    private void sendVideo(byte[] videoData) {
+    private void sendVideo(DatagramType type, byte[] videoData) {
         try {
             if (DEBUG_MODE) {
                 System.out.println("[CallClient][SEND][VIDEO] payload=" + videoData.length);
             }
+            byte typeByte = (byte) type.getValue();
+            videoData[1] = typeByte; // Prepend type byte to the video data TODO(ALWAYS PAD FIRST TWO BYTES PREEMPTIVELY)
             DatagramPacket dgPacket = new DatagramPacket(videoData, videoData.length, serverAddress, serverPort);
             docket.send(dgPacket);
             System.out.println("[CallClient][SEND][VIDEO] Sent packet to server: " + serverAddress + ":" + serverPort);
         } catch (IOException e) {
             System.out.println("[CallClient][SEND][VIDEO] Error sending packet: " + e.getMessage());
         }
-    }
-
-    private String typeToLabel(int type) {
-        if (type == DatagramType.AUDIO.getValue()) {
-            return "AUDIO";
-        }
-        if (type == DatagramType.VIDEO.getValue()) {
-            return "VIDEO";
-        }
-        return "UNKNOWN";
     }
 
 }

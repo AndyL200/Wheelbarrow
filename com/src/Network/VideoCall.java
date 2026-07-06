@@ -18,14 +18,14 @@ import java.util.ArrayList;
 import java.util.HashMap;
 
 import Components.VideoCallComp;
-import Components.Config.User;
 
 class Feed {
     VideoCallComp videoFeed;
     DataOutputStream videoStreamWriter;
 }
 public class VideoCall implements AutoCloseable {
-    HashMap<User, Feed> videoFeeds;
+    List<Feed> videoFeeds;
+    HashMap<Integer, Integer> clientIdtoFeedIdx; // Map client IDs to feed indices for routing video data
 
     //[THREADS]
     Thread sendThread;
@@ -40,12 +40,12 @@ public class VideoCall implements AutoCloseable {
     private FFmpegFrameGrabber videoGrabber;
 
     VideoCall() {
-        this.videoFeeds = new HashMap<>();
+        this.videoFeeds = new ArrayList<>();
         this.videoSupply = Executors.newCachedThreadPool();
     }
 
     public void start() {
-        for (Feed feed : videoFeeds.values()) {
+        for (Feed feed : videoFeeds) {
             videoSupply.submit(() -> supplyVideo(feed));
         }
     }
@@ -53,16 +53,21 @@ public class VideoCall implements AutoCloseable {
 
     }
 
-    public void offer(User u, byte[] data) {
-        Feed feed = videoFeeds.get(u);
+    public void offer(int client_idx, byte[] data) {
+        Integer feedIdx = clientIdtoFeedIdx.get(client_idx);
+        if (feedIdx == null) {
+            addUser(client_idx);
+        }
+        Feed feed = videoFeeds.get(feedIdx);
         if (feed != null && feed.videoStreamWriter != null) {
             try {
                 feed.videoStreamWriter.write(data);
                 feed.videoStreamWriter.flush();
             } catch (IOException e) {
-                System.err.println("Error writing to video stream for user " + u.getUsername() + ": " + e.getMessage());
-                e.printStackTrace();
+                System.err.println("Error writing to video stream for user " + client_idx + ": " + e.getMessage());
             }
+        } else {
+
         }
     }
 
@@ -70,7 +75,7 @@ public class VideoCall implements AutoCloseable {
         
     }
 
-    public HashMap<User, Feed> getVideoFeeds() {
+    public List<Feed> getVideoFeeds() {
         return videoFeeds;
     }
 
@@ -83,7 +88,7 @@ public class VideoCall implements AutoCloseable {
             try {
                 feed.videoStreamWriter.write(videoGrabber.grabAtFrameRate().data.array());
             } catch (IOException e) {
-                System.err.println("Error writing to video stream for user " + feed.videoFeed.getUser().getUsername() + ": " + e.getMessage());
+                System.err.println("Error writing to video stream for user " + feed.videoFeed.getClientId() + ": " + e.getMessage());
                 e.printStackTrace();
             } catch (InterruptedException e) {
                 return; // Thread interrupted, exit gracefully
@@ -96,22 +101,29 @@ public class VideoCall implements AutoCloseable {
         String os = System.getProperty("os.name").toLowerCase();
         //[TODO] this is only supported on windows, check others later
         videoGrabber.setFormat("gdigrab");
-        videoGrabber.start();
+        try {
+            videoGrabber.start();
+        } catch (Exception e) {
+            System.err.println("Error starting video grabber: " + e.getMessage());
+        }
     }
     public void setFrame(String windowTitle) {
         videoGrabber = new FFmpegFrameGrabber(windowTitle);
         videoGrabber.setFormat("gdigrab");
-        videoGrabber.start();
+        try {
+            videoGrabber.start();
+        } catch (Exception e) {
+            System.err.println("Error starting video grabber: " + e.getMessage());
+        }
     }
 
-    public void addUser(User u) {
-        if (!videoFeeds.containsKey(u)) {
-            Feed feed = new Feed();
-            feed.videoFeed = new VideoCallComp(u);
-            feed.videoStreamWriter = new DataOutputStream(feed.videoFeed.getVideoOutputStream());
-            videoFeeds.put(u, feed);
-            videoSupply.submit(() -> supplyVideo(feed));
-        }
+    public void addUser(int clientId) {
+        Feed feed = new Feed();
+        feed.videoFeed = new VideoCallComp(videoFeeds.size()-1);
+        feed.videoStreamWriter = new DataOutputStream(feed.videoFeed.getVideoOutputStream());
+        videoFeeds.add(feed);
+        clientIdtoFeedIdx.put(clientId, videoFeeds.size() - 1);
+        videoSupply.submit(() -> supplyVideo(feed));
     }
 
     @Override

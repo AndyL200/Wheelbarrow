@@ -24,14 +24,16 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import Components.ComponentMacros.DatagramType;
 
+
+
 public class CallServer extends CallObj implements AutoCloseable {
     DatagramSocket docket;
-    HashMap<SocketAddress, Long> clients = new HashMap<>(); // Track client activity timestamp
+    HashMap<SocketAddress, Pair<Integer, Long>> clients = new HashMap<>(); // Track client activity timestamp
     private InetAddress ADDRESS;
     private int PORT;
     private static final int INACTIVITY_TIMEOUT = 30000;
     private static final boolean DEBUG_PACKET_TYPE = Preferences.userRoot().node("wheelbarrow/debug").getBoolean("mode", false);
-
+    private int NETWORK_BUFFER_SIZE = 2048; // Default, will be set to MTU if possible
     // Threads
     private volatile Thread receiveThread;
     private volatile Thread broadcastThread;
@@ -43,9 +45,10 @@ public class CallServer extends CallObj implements AutoCloseable {
     private volatile boolean running = false;
     
     AtomicReference<BlockingQueue<byte[]>> outboundQueue = new AtomicReference<>(new LinkedBlockingQueue<>(100));
-
+    private final int SERVER_ID;
     public CallServer() {
         //what if already hosting server? could just use the same socket
+        SERVER_ID = 0;
         ADDRESS = getLocalNetworkAddress();
         this.PORT = 50000; // Default port, will be overridden if unavailable
         try {
@@ -91,9 +94,14 @@ public class CallServer extends CallObj implements AutoCloseable {
             }
             
         });
-        docket.setSendBufferSize(minMTU[0]);
+            docket.setSendBufferSize(minMTU[0]);
         } catch (SocketException se) {
             System.out.println("Failed to set send buffer size: " + se.getMessage());
+        }
+
+        if (NETWORK_BUFFER_SIZE > minMTU[0]) {
+            NETWORK_BUFFER_SIZE = minMTU[0] - 100; // Leave some overhead for headers
+            System.out.println("Adjusted network buffer size to " + NETWORK_BUFFER_SIZE + " based on MTU");
         }
 
         if (ADDRESS == null) {
@@ -112,7 +120,7 @@ public class CallServer extends CallObj implements AutoCloseable {
                 System.out.println("Audio call already open");
                 return;
             }
-            audioCall = new AudioCallServer();
+            audioCall = new AudioCall();
             audioCall.start();
             audioCall.setOnAudioSupply(this::supplyAudio);
         } finally {
@@ -123,10 +131,13 @@ public class CallServer extends CallObj implements AutoCloseable {
     private void supplyAudio(byte[] audioData) {
         System.out.println("[CallClient.supplyAudio] audio of size " + audioData.length + " supplied.");
         //split data into Network buffer sized chunks
-        if(audioData.length > AudioCall.NETWORK_BUFFER_SIZE) {
-            for (int i = 0; i < audioData.length; i += AudioCall.NETWORK_BUFFER_SIZE) {
-                int end = Math.min(audioData.length, i + AudioCall.NETWORK_BUFFER_SIZE);
-                byte[] chunk = Arrays.copyOfRange(audioData, i, end);
+        if(audioData.length > NETWORK_BUFFER_SIZE) {
+            for (int i = 0; i < audioData.length; i += NETWORK_BUFFER_SIZE) {
+                int end = Math.min(audioData.length, i + NETWORK_BUFFER_SIZE);
+                byte[] identifiers = {(byte) SERVER_ID, (byte) DatagramType.AUDIO.getValue()};
+                byte[] chunk = new byte[end - i + identifiers.length];
+                System.arraycopy(identifiers, 0, chunk, 0, identifiers.length);
+                System.arraycopy(audioData, i, chunk, identifiers.length, end - i);
                 System.out.println("[CallClient.supplyAudio] offering chunk of size " + chunk.length);
                 outboundQueue.get().offer(chunk);
             }
@@ -148,7 +159,7 @@ public class CallServer extends CallObj implements AutoCloseable {
                 System.out.println("Video call already open");
                 return;
             }
-            videoCall = new VideoCallServer();
+            videoCall = new VideoCall();
             videoCall.start();
             videoCall.setOnVideoSupply(this::supplyVideo);
         } finally {
@@ -158,10 +169,13 @@ public class CallServer extends CallObj implements AutoCloseable {
 
     private void supplyVideo(byte[] videoData) {
         System.out.println("[CallClient.supplyVideo] video of size " + videoData.length + " supplied.");
-        if (videoData.length > VideoCall.NETWORK_BUFFER_SIZE) {
-            for(int i = 0; i < videoData.length; i += VideoCall.NETWORK_BUFFER_SIZE) {
-                int end = Math.min(videoData.length, i + VideoCall.NETWORK_BUFFER_SIZE);
-                byte[] chunk = Arrays.copyOfRange(videoData, i, end);
+        if (videoData.length > NETWORK_BUFFER_SIZE) {
+            for(int i = 0; i < videoData.length; i += NETWORK_BUFFER_SIZE) {
+                int end = Math.min(videoData.length, i + NETWORK_BUFFER_SIZE);
+                byte[] identifiers = {(byte) SERVER_ID, (byte) DatagramType.VIDEO.getValue()};
+                byte[] chunk = new byte[end - i + identifiers.length];
+                System.arraycopy(identifiers, 0, chunk, 0, identifiers.length);
+                System.arraycopy(videoData, i, chunk, identifiers.length, end - i);
                 outboundQueue.get().offer(chunk);
             }
         }
@@ -203,33 +217,45 @@ public class CallServer extends CallObj implements AutoCloseable {
                 long currentTime = System.currentTimeMillis();
                 if (!clients.containsKey(clientAddress)) {
                     System.out.println("New client connected: " + clientAddress);
+                    clients.put(clientAddress, new Pair<>(clients.size()-1, currentTime));
                 }
-                clients.put(clientAddress, currentTime);
+                else {
+                    clients.put(clientAddress, new Pair<>(clients.get(clientAddress).first(), currentTime)); // Update last activity time
+                }
+                
             }
 
+            byte[] packetData = request.getData();
+
             //determine type by checking against format
-            int type;
-            if (request.getLength() <= AudioCall.NETWORK_BUFFER_SIZE) {
-                type = DatagramType.AUDIO.getValue();
-            } else if (request.getLength() <= VideoCall.NETWORK_BUFFER_SIZE) {
-                type = DatagramType.VIDEO.getValue();
+            DatagramType type;
+            if (packetData[1] == DatagramType.AUDIO.getValue()) {
+                type = DatagramType.AUDIO;
+            } else if (packetData[1] == DatagramType.VIDEO.getValue()) {
+                type = DatagramType.VIDEO;
             } else {
                 //Really we would want a format test here if the sizes fail
-                type = DatagramType.UNKNOWN.getValue(); // Treat as debug or unknown type
+                type = DatagramType.UNKNOWN; // Treat as debug or unknown type
             }
             
             if (DEBUG_PACKET_TYPE) {
-                System.out.println("[CallServer][RECV] from=" + clientAddress + " type=" + type + " (" + typeToLabel(type) + ") payload=" + request.getLength());
+                System.out.println("[CallServer][RECV] from=" + clientAddress + " type=" + type + " (" + type.toString() + ") payload=" + request.getLength());
             }
             
-            byte[] packetData = request.getData();
-            if (type == DatagramType.AUDIO.getValue()) {
-                byte[] audioData = Arrays.copyOf(packetData, request.getLength());
-                receiveAudio(audioData);
-            } else if (type == DatagramType.VIDEO.getValue()) {
-                byte[] videoData = Arrays.copyOf(packetData, request.getLength());
-                receiveVideo(videoData);
-            } else if (type == DatagramType.UNKNOWN.getValue()) {
+            int client_id = clients.get(clientAddress).first(); // Get client ID based on address
+            if (type == DatagramType.AUDIO) {
+                byte[] audioData = new byte[request.getLength() + 2];
+                audioData[0] = (byte) SERVER_ID;
+                audioData[1] = (byte) DatagramType.AUDIO.getValue();
+                System.arraycopy(packetData, 2, audioData, 2, request.getLength() - 2);
+                receiveAudio(type, audioData, client_id);
+            } else if (type == DatagramType.VIDEO) {
+                byte[] videoData = new byte[request.getLength() + 2];
+                videoData[0] = (byte) SERVER_ID;
+                videoData[1] = (byte) DatagramType.VIDEO.getValue();
+                System.arraycopy(packetData, 2, videoData, 2, request.getLength() - 2);
+                receiveVideo(type, videoData, client_id);
+            } else if (type == DatagramType.UNKNOWN) {
                 System.out.println("[CallServer][RECV] Unknown datagram type=" + type);
             }
         }
@@ -258,26 +284,16 @@ public class CallServer extends CallObj implements AutoCloseable {
                     Iterator<SocketAddress> iterator = clients.keySet().iterator();
                     while (iterator.hasNext()) {
                         SocketAddress client = iterator.next();
-                        Long lastActivityTime = clients.get(client);
+                        Long lastActivityTime = clients.get(client).second();
                         long currentTime = System.currentTimeMillis();
 
                         if (currentTime - (currentTime - startTime) - lastActivityTime > INACTIVITY_TIMEOUT) {
                             clients.remove(client);
                             System.out.println("Removed inactive client: " + client);
                         } else {
-                            // Determine packet type
-                            int type;
-                            if (packetData.length <= AudioCall.NETWORK_BUFFER_SIZE) {
-                                type = DatagramType.AUDIO.getValue();
-                            } else if (packetData.length <= VideoCall.NETWORK_BUFFER_SIZE) {
-                                type = DatagramType.VIDEO.getValue();
-                            } else {
-                                type = DatagramType.UNKNOWN.getValue();
-                            }
-                            
                             try {
                                 if (DEBUG_PACKET_TYPE) {
-                                    System.out.println("[CallServer][SEND] to=" + client + " type=" + type + " (" + typeToLabel(type) + ") payload=" + packetData.length);
+                                    System.out.println("[CallServer][SEND] to=" + client + " payload=" + packetData.length);
                                 }
                                 docket.send(new DatagramPacket(packetData, packetData.length, client));
                             } catch (IOException e) {
@@ -290,22 +306,23 @@ public class CallServer extends CallObj implements AutoCloseable {
         }
     }
 
-    private void receiveAudio(byte[] data) {
+    private void receiveAudio(DatagramType type, byte[] data, int client_id) {
         audioLock.lock();
         try {
-            if (audioCall != null) {
-                audioCall.offer(data);
+            if (audioCall != null && type == DatagramType.AUDIO) {
+                audioCall.offer(client_id, data);
             }
         } finally {
             audioLock.unlock();
+            outboundQueue.get().offer(data); // Echo back to all clients, including sender, for testing
         }
     }
 
-    private void receiveVideo(byte[] data) {
+    private void receiveVideo(DatagramType type, byte[] data, int client_id) {
         videoLock.lock();
         try {
-            if (videoCall != null) {
-                videoCall.offer(data);
+            if (videoCall != null && type == DatagramType.VIDEO) {
+                videoCall.offer(client_id, data);
             }
         } finally {
             videoLock.unlock();

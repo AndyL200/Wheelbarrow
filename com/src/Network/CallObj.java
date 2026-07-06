@@ -1,5 +1,8 @@
 package Network;
 
+//increase if needed
+record Pair<A, B>(A first, B second) {}
+
 public abstract class CallObj implements Call {
 
     

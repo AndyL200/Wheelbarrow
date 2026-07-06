@@ -14,6 +14,15 @@ public enum DatagramType {
     public int getValue() {
         return value;
     }
+
+    @Override
+    public String toString() {
+        return switch (this) {
+            case AUDIO -> "AUDIO";
+            case VIDEO -> "VIDEO";
+            case UNKNOWN -> "UNKNOWN";
+        };
+    }
 }
 
 
